@@ -1,0 +1,69 @@
+{
+  "uuid": "28598a4e-6166-4aa8-8080-4594d6eb8df6",
+  "shortName": "cleanface",
+  "longName": "cleanface",
+  "companyName": "andree.sk",
+  "versionLabel": "0.1",
+  "sdkVersion": "3",
+  "targetPlatforms": ["aplite", "basalt", "chalk"],
+  "watchapp": {
+    "watchface": true
+  },
+  "appKeys": {
+    "dummy": 0
+  },
+  "resources": {
+    "media": [
+      {
+        "type": "png",
+        "name": "IMAGE_N9",
+        "file": "images/w36-n9.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N8",
+        "file": "images/w36-n8.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N7",
+        "file": "images/w36-n7.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N6",
+        "file": "images/w36-n6.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N5",
+        "file": "images/w36-n5.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N4",
+        "file": "images/w36-n4.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N3",
+        "file": "images/w36-n3.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N2",
+        "file": "images/w36-n2.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N1",
+        "file": "images/w36-n1.png"
+      },
+      {
+        "type": "png",
+        "name": "IMAGE_N0",
+        "file": "images/w36-n0.png"
+      }
+    ]
+  }
+}
