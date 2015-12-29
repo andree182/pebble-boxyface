@@ -1,16 +1,13 @@
 {
   "uuid": "28598a4e-6166-4aa8-8080-4594d6eb8df6",
   "shortName": "cleanface",
-  "longName": "cleanface",
+  "longName": "Clean Watchface",
   "companyName": "andree.sk",
   "versionLabel": "0.1",
   "sdkVersion": "3",
-  "targetPlatforms": ["aplite", "basalt", "chalk"],
+  "targetPlatforms": ["basalt"],
   "watchapp": {
     "watchface": true
-  },
-  "appKeys": {
-    "dummy": 0
   },
   "resources": {
     "media": [
