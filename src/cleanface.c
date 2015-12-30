@@ -3,7 +3,8 @@
 static Window *window;
 static Layer *digitsLayer;
 static DigitSlot digitSlots[4];
-
+static int align = -1;
+static int hourLeadingZero = true;
 
 static void update_digits_layer(Layer *layer, GContext *ctx) {
 	GRect r;
@@ -45,11 +46,11 @@ static void update_digit_slot(Layer *layer, GContext *ctx) {
 	}
 }
 
-static void display_value(unsigned short value, unsigned short layer_offset, bool leading_zero) {
+static void display_value(unsigned short value, unsigned short layer_offset, bool leadingZero) {
 	for (int col = 1; col >= 0; col--) {
 		DigitSlot *slot = &digitSlots[layer_offset + col];
 		slot->curDigit = value % 10;
-		if ((slot->curDigit == 0) && (col == 0) && !leading_zero)
+		if ((slot->curDigit == 0) && (col == 0) && !leadingZero)
 			slot->curDigit = -1;
 		value /= 10;
 	}
@@ -64,25 +65,39 @@ static unsigned short handle_12_24(unsigned short hour) {
 	return (hour != 0) ? hour : 12;
 }
 
-static void tick_handler(struct tm *tick_time, TimeUnits units_changed)
+static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 {
-	display_value(handle_12_24(tick_time->tm_hour), 0, true);
-	display_value(tick_time->tm_min, 2, true);
+	display_value(handle_12_24(tickTime->tm_hour), 0, hourLeadingZero);
+	display_value(tickTime->tm_min, 2, true);
 	layer_mark_dirty(digitsLayer);
 }
 
 static void window_load(Window *window) {
-	Layer *window_layer = window_get_root_layer(window);
-	GRect bounds = layer_get_bounds(window_layer);
+	Layer *windowLayer = window_get_root_layer(window);
+	GRect bounds = layer_get_bounds(windowLayer);
 	unsigned i;
-	struct tm *tick_time;
+	struct tm *tickTime;
 	DigitSlot *slot;
+	int digitsLayerPos = 0;
 
 	window_set_background_color(window, BACKGROUND_COLOR);
 
+	if (align == -1) {
+		/* Clock on top */
+		digitsLayerPos = DIGIT_BORDER_HEIGHT;
+	} else if (align == 0) {
+		/* Clock in the middle */
+		digitsLayerPos = bounds.size.h / 2 - TIME_DIGIT_H / 2 -
+			DIGIT_BORDER_HEIGHT;
+	} else {
+		/* Clock on the bottom */
+		digitsLayerPos = bounds.size.h - TIME_BOTTOM_OFFSET - TIME_DIGIT_H -
+			DIGIT_BORDER_HEIGHT * 2;
+	}
+
 	digitsLayer = layer_create(
 		GRect(
-			0, bounds.size.h - TIME_BOTTOM_OFFSET - TIME_DIGIT_H - DIGIT_BORDER_HEIGHT * 2,
+			0, digitsLayerPos,
 			bounds.size.w, TIME_DIGIT_H + DIGIT_BORDER_HEIGHT * 2
 		)
 	);
@@ -108,8 +123,8 @@ static void window_load(Window *window) {
 	// initial values
 	time_t temp;
 	temp = time(NULL);
-	tick_time = localtime(&temp);
-	tick_handler(tick_time, MINUTE_UNIT);
+	tickTime = localtime(&temp);
+	tick_handler(tickTime, MINUTE_UNIT);
 }
 
 static void window_unload(Window *window) {
@@ -132,7 +147,6 @@ static void init(void) {
 	});
 	const bool animated = true;
 	window_stack_push(window, animated);
-	display_value(10, 0, false);
 
 	tick_timer_service_subscribe(MINUTE_UNIT, (TickHandler) tick_handler);	
 }

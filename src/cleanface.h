@@ -6,12 +6,12 @@
 #define TIME_DIGIT_ROWS (5)
 #define TIME_DIGIT_BORDER (6)
 
-#define TIME_BOTTOM_OFFSET (6 * 3)
+#define TIME_BOTTOM_OFFSET (TIME_DIGIT_BORDER * 2)
 #define BACKGROUND_COLOR (GColorBlue)
 #define DIGIT_BACKGROUND_COLOR (GColorWhite)
 #define DIGIT_COLOR (GColorBlack)
 #define DIGIT_BORDER_COLOR (GColorBlack)
-#define DIGIT_BORDER_HEIGHT (TIME_DIGIT_BORDER / 2)
+#define DIGIT_BORDER_HEIGHT (TIME_DIGIT_BORDER)
 
 typedef struct {
 	Layer *layer;
