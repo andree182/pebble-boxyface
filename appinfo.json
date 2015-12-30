@@ -1,8 +1,8 @@
 {
   "uuid": "28598a4e-6166-4aa8-8080-4594d6eb8df6",
-  "shortName": "cleanface",
-  "longName": "Clean Watchface",
-  "companyName": "andree.sk",
+  "shortName": "boxyface",
+  "longName": "plain-but-highly-readable watchface",
+  "companyName": "Andrej Krutak",
   "versionLabel": "0.1",
   "sdkVersion": "3",
   "targetPlatforms": ["aplite", "basalt"],
