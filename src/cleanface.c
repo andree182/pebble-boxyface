@@ -14,15 +14,15 @@ static void update_digits_layer(Layer *layer, GContext *ctx) {
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
-	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, DIGIT_BORDER_HEIGHT), 0, GCornerNone);
-	graphics_fill_rect(ctx, GRect(0, r.size.h - DIGIT_BORDER_HEIGHT, r.size.w, DIGIT_BORDER_HEIGHT), 0, GCornerNone);
+	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
 }
 
 static void update_digit_slot(Layer *layer, GContext *ctx) {
 	DigitSlot *slot = *(DigitSlot**)layer_get_data(layer);
 	int col, row;
-	const int texel_w = (TIME_DIGIT_W - 2 * TIME_DIGIT_BORDER) / TIME_DIGIT_COLS;
-	const int texel_h = (TIME_DIGIT_H - 2 * TIME_DIGIT_BORDER) / TIME_DIGIT_ROWS;
+	const int texel_w = (TIME_DIGIT_W - 2 * WIDGET_BORDER) / TIME_DIGIT_COLS;
+	const int texel_h = (TIME_DIGIT_H - 2 * WIDGET_BORDER) / TIME_DIGIT_ROWS;
 
 	if (slot->curDigit < 0)
 		return;
@@ -35,8 +35,8 @@ static void update_digit_slot(Layer *layer, GContext *ctx) {
 			if (v & (1 << (TIME_DIGIT_COLS - col - 1))) {
 				graphics_fill_rect(ctx,
 					GRect(
-						TIME_DIGIT_BORDER + col * texel_w,
-						TIME_DIGIT_BORDER + row * texel_h,
+						WIDGET_BORDER + col * texel_w,
+						WIDGET_BORDER + row * texel_h,
 						texel_w, texel_h
 					),
 					0, GCornerNone
@@ -84,21 +84,19 @@ static void window_load(Window *window) {
 
 	if (align == -1) {
 		/* Clock on top */
-		digitsLayerPos = DIGIT_BORDER_HEIGHT;
+		digitsLayerPos = BORDER_OFFSET;
 	} else if (align == 0) {
 		/* Clock in the middle */
-		digitsLayerPos = bounds.size.h / 2 - TIME_DIGIT_H / 2 -
-			DIGIT_BORDER_HEIGHT;
+		digitsLayerPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
 	} else {
 		/* Clock on the bottom */
-		digitsLayerPos = bounds.size.h - TIME_BOTTOM_OFFSET - TIME_DIGIT_H -
-			DIGIT_BORDER_HEIGHT * 2;
+		digitsLayerPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
 	}
 
 	digitsLayer = layer_create(
 		GRect(
 			0, digitsLayerPos,
-			bounds.size.w, TIME_DIGIT_H + DIGIT_BORDER_HEIGHT * 2
+			bounds.size.w, TIME_DIGIT_H + WIDGET_BORDER * 2
 		)
 	);
 	layer_set_update_proc(digitsLayer, update_digits_layer);
@@ -109,7 +107,7 @@ static void window_load(Window *window) {
 
 		slot->curDigit = 0;
 		slot->layer = layer_create_with_data(
-				GRect(i * TIME_DIGIT_W, DIGIT_BORDER_HEIGHT,
+				GRect(i * TIME_DIGIT_W, WIDGET_BORDER,
 					  TIME_DIGIT_W, TIME_DIGIT_H),
 				sizeof(slot)
 			);
