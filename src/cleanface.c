@@ -1,16 +1,31 @@
 #include "cleanface.h"
 
 static Window *window;
-static Layer *digitsLayer;
-static DigitSlot digitSlots[4];
+static Layer *digitsLayer, *calendarLayer;
+static DigitSlot digitSlots[4], calendarSlots[2];
+static TextLayer *calendarYMLayer, *calendarWDayLayer;
 static int align = -1;
 static int hourLeadingZero = true;
+
+static void update_calendar_layer(Layer *layer, GContext *ctx) {
+	GRect r;
+	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
+
+	r = layer_get_bounds(layer);
+	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
+
+	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
+	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+	graphics_fill_rect(ctx, GRect(0, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
+	graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
+}
 
 static void update_digits_layer(Layer *layer, GContext *ctx) {
 	GRect r;
 	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
 
-	r = layer_get_bounds(digitsLayer);
+	r = layer_get_bounds(layer);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
@@ -46,9 +61,9 @@ static void update_digit_slot(Layer *layer, GContext *ctx) {
 	}
 }
 
-static void display_value(unsigned short value, unsigned short layer_offset, bool leadingZero) {
+static void display_value(DigitSlot *slots, unsigned short value, unsigned short layer_offset, bool leadingZero) {
 	for (int col = 1; col >= 0; col--) {
-		DigitSlot *slot = &digitSlots[layer_offset + col];
+		DigitSlot *slot = &slots[layer_offset + col];
 		slot->curDigit = value % 10;
 		if ((slot->curDigit == 0) && (col == 0) && !leadingZero)
 			slot->curDigit = -1;
@@ -67,9 +82,22 @@ static unsigned short handle_12_24(unsigned short hour) {
 
 static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 {
-	display_value(handle_12_24(tickTime->tm_hour), 0, hourLeadingZero);
-	display_value(tickTime->tm_min, 2, true);
+	static char ym[16];
+	const char *months[] = {
+		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+	};
+	const char *dows[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+
+	display_value(digitSlots, handle_12_24(tickTime->tm_hour), 0, hourLeadingZero);
+	display_value(digitSlots, tickTime->tm_min, 2, true);
+	display_value(calendarSlots, tickTime->tm_mday, 0, hourLeadingZero);
+
+	snprintf(ym, sizeof(ym), "%04d %s", tickTime->tm_year + 1900, months[tickTime->tm_mon]);
+	text_layer_set_text(calendarYMLayer, ym);
+	text_layer_set_text(calendarWDayLayer, dows[tickTime->tm_wday]);
+
 	layer_mark_dirty(digitsLayer);
+	layer_mark_dirty(calendarLayer);
 }
 
 static void window_load(Window *window) {
@@ -78,26 +106,30 @@ static void window_load(Window *window) {
 	unsigned i;
 	struct tm *tickTime;
 	DigitSlot *slot;
-	int digitsLayerPos = 0;
+	int digitsLayerPos;
+	int calendarLayerVPos;
+	int calendarLayerHPos;
 
 	window_set_background_color(window, BACKGROUND_COLOR);
 
+	calendarLayerHPos = bounds.size.w / 2 - CALENDAR_WIDGET_W / 2;
 	if (align == -1) {
 		/* Clock on top */
 		digitsLayerPos = BORDER_OFFSET;
+		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
 	} else if (align == 0) {
 		/* Clock in the middle */
 		digitsLayerPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
+		calendarLayerVPos = BORDER_OFFSET;
 	} else {
 		/* Clock on the bottom */
 		digitsLayerPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
+		calendarLayerVPos = BORDER_OFFSET;
 	}
 
+	/* Clock */
 	digitsLayer = layer_create(
-		GRect(
-			0, digitsLayerPos,
-			bounds.size.w, TIME_DIGIT_H + WIDGET_BORDER * 2
-		)
+		GRect(0, digitsLayerPos, bounds.size.w, TIME_WIDGET_H)
 	);
 	layer_set_update_proc(digitsLayer, update_digits_layer);
 	layer_add_child(window_get_root_layer(window), digitsLayer);
@@ -118,6 +150,44 @@ static void window_load(Window *window) {
 		layer_add_child(digitsLayer, slot->layer);
 	}
 
+	/* Calendar */
+	calendarLayer = layer_create(
+		GRect(calendarLayerHPos, calendarLayerVPos, CALENDAR_WIDGET_W, CALENDAR_WIDGET_H)
+	);
+	layer_set_update_proc(calendarLayer, update_calendar_layer);
+	layer_add_child(window_get_root_layer(window), calendarLayer);
+	for (i = 0; i < sizeof(calendarSlots) / sizeof(calendarSlots[0]); i++) {
+		slot = &calendarSlots[i];
+
+		slot->curDigit = 0;
+		slot->layer = layer_create_with_data(
+				GRect(
+					WIDGET_BORDER + i * TIME_DIGIT_W, CALENDAR_WIDGET_H / 2 - TIME_DIGIT_H / 2,
+					TIME_DIGIT_W, TIME_DIGIT_H
+				), sizeof(slot)
+			);
+
+		*(DigitSlot **)layer_get_data(slot->layer) = slot;
+		layer_set_update_proc(slot->layer, update_digit_slot);
+
+		layer_add_child(calendarLayer, slot->layer);
+	}
+	calendarYMLayer = text_layer_create(
+		GRect(WIDGET_BORDER, WIDGET_BORDER, CALENDAR_W, CALENDAR_TEXT_H)
+	);
+	text_layer_set_font(calendarYMLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
+	text_layer_set_text_alignment(calendarYMLayer, GTextAlignmentCenter);
+	layer_add_child(calendarLayer, text_layer_get_layer(calendarYMLayer));
+	calendarWDayLayer = text_layer_create(
+		GRect(
+			WIDGET_BORDER, CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - 4, // HACK: the text would ba too low otherwise
+			CALENDAR_W, CALENDAR_TEXT_H
+		)
+	);
+	text_layer_set_font(calendarWDayLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
+	text_layer_set_text_alignment(calendarWDayLayer, GTextAlignmentCenter);
+	layer_add_child(calendarLayer, text_layer_get_layer(calendarWDayLayer));
+
 	// initial values
 	time_t temp;
 	temp = time(NULL);
@@ -135,6 +205,16 @@ static void window_unload(Window *window) {
 		layer_destroy(digitSlots[i].layer);
 	}
 	layer_destroy(digitsLayer);
+
+	for (i = 0; i < sizeof(calendarSlots) / sizeof(calendarSlots[0]); i++) {
+		layer_remove_from_parent(calendarSlots[i].layer);
+		layer_destroy(calendarSlots[i].layer);
+	}
+	layer_remove_from_parent(text_layer_get_layer(calendarYMLayer));
+	text_layer_destroy(calendarYMLayer);
+	layer_remove_from_parent(text_layer_get_layer(calendarWDayLayer));
+	text_layer_destroy(calendarWDayLayer);
+	layer_destroy(calendarLayer);
 }
 
 static void init(void) {
