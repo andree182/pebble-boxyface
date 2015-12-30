@@ -1,4 +1,4 @@
-#include "cleanface.h"
+#include "watchface.h"
 
 static Window *window;
 static Layer *digitsLayer, *calendarLayer;
