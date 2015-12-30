@@ -86,7 +86,7 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 	const char *months[] = {
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	};
-	const char *dows[] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+	const char *dows[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
 	display_value(digitSlots, handle_12_24(tickTime->tm_hour), 0, hourLeadingZero);
 	display_value(digitSlots, tickTime->tm_min, 2, true);
