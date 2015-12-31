@@ -27,8 +27,7 @@ static void update_calendar_layer(Layer *layer, GContext *ctx) {
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
 	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
-	graphics_fill_rect(ctx, GRect(0, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
-	graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
+	graphics_fill_rect(ctx, GRect(TIME_DIGIT_W * 2, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
 }
 
 static void update_digits_layer(Layer *layer, GContext *ctx) {
@@ -177,7 +176,7 @@ static void window_load(Window *window) {
 		slot->curDigit = 0;
 		slot->layer = layer_create_with_data(
 				GRect(
-					WIDGET_BORDER + i * TIME_DIGIT_W, CALENDAR_WIDGET_H / 2 - TIME_DIGIT_H / 2,
+					i * TIME_DIGIT_W, CALENDAR_WIDGET_H / 2 - TIME_DIGIT_H / 2,
 					TIME_DIGIT_W, TIME_DIGIT_H
 				), sizeof(slot)
 			);
@@ -188,15 +187,15 @@ static void window_load(Window *window) {
 		layer_add_child(calendarLayer, slot->layer);
 	}
 	calendarYMLayer = text_layer_create(
-		GRect(WIDGET_BORDER, WIDGET_BORDER, CALENDAR_W, CALENDAR_TEXT_H)
+		GRect(0, WIDGET_BORDER, TIME_DIGIT_W * 2, CALENDAR_TEXT_H)
 	);
 	text_layer_set_font(calendarYMLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
 	text_layer_set_text_alignment(calendarYMLayer, GTextAlignmentCenter);
 	layer_add_child(calendarLayer, text_layer_get_layer(calendarYMLayer));
 	calendarWDayLayer = text_layer_create(
 		GRect(
-			WIDGET_BORDER, CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - 4, // HACK: the text would ba too low otherwise
-			CALENDAR_W, CALENDAR_TEXT_H
+			0, CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - 4, // HACK: the text would ba too low otherwise
+			TIME_DIGIT_W * 2, CALENDAR_TEXT_H
 		)
 	);
 	text_layer_set_font(calendarWDayLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
