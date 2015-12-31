@@ -6,6 +6,16 @@ static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
 static int align = -1;
 static int hourLeadingZero = true;
+#if defined(PBL_BW)
+static GBitmap *grayTexture;
+
+static void update_root_layer(Layer *layer, GContext *ctx) {
+	GRect r;
+
+	r = layer_get_bounds(layer);
+	graphics_draw_bitmap_in_rect(ctx, grayTexture, r);
+}
+#endif
 
 static void update_calendar_layer(Layer *layer, GContext *ctx) {
 	GRect r;
@@ -110,7 +120,12 @@ static void window_load(Window *window) {
 	int calendarLayerVPos;
 	int calendarLayerHPos;
 
+#if defined(PBL_COLOR)
 	window_set_background_color(window, BACKGROUND_COLOR);
+#elif defined(PBL_BW)
+	grayTexture = gbitmap_create_with_resource(RESOURCE_ID_GRAY_BG);
+	layer_set_update_proc(window_get_root_layer(window), update_root_layer);
+#endif
 
 	calendarLayerHPos = bounds.size.w / 2 - CALENDAR_WIDGET_W / 2;
 	if (align == -1) {
@@ -215,6 +230,10 @@ static void window_unload(Window *window) {
 	layer_remove_from_parent(text_layer_get_layer(calendarWDayLayer));
 	text_layer_destroy(calendarWDayLayer);
 	layer_destroy(calendarLayer);
+
+#if defined(PBL_BW)
+	gbitmap_destroy(grayTexture);
+#endif
 }
 
 static void init(void) {

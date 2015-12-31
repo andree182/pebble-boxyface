@@ -3,7 +3,7 @@
   "shortName": "boxyface",
   "longName": "plain-but-highly-readable watchface",
   "companyName": "Andrej Krutak",
-  "versionLabel": "0.1",
+  "versionLabel": "0.2",
   "sdkVersion": "3",
   "targetPlatforms": ["aplite", "basalt"],
   "watchapp": {
@@ -11,6 +11,11 @@
   },
   "resources": {
     "media": [
+      {
+        "type": "png",
+        "name": "GRAY_BG",
+        "file": "images/gray.png"
+      }
     ]
   }
 }
