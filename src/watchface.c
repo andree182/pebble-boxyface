@@ -3,7 +3,7 @@
 static Window *window;
 static Layer *digitsLayer, *calendarLayer;
 static DigitSlot digitSlots[4], calendarSlots[2];
-static TextLayer *calendarYMLayer, *calendarWDayLayer;
+static TextLayer *calendarYMLayer, *calendarWDayLayer, *ampmLayer;
 static int align = -1;
 static int hourLeadingZero = true;
 #if defined(PBL_BW)
@@ -82,7 +82,11 @@ static void display_value(DigitSlot *slots, unsigned short value, unsigned short
 }
 
 static unsigned short handle_12_24(unsigned short hour) {
+#if 0
 	if (clock_is_24h_style()) {
+#else
+	if (0) {
+#endif
 		return hour;
 	}
 
@@ -97,9 +101,14 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	};
 	const char *dows[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+	const char *ampm[] = { "AM", "PM" };
 
-	display_value(digitSlots, handle_12_24(tickTime->tm_hour), 0, hourLeadingZero);
+	display_value(digitSlots, handle_12_24(tickTime->tm_hour), 0, !clock_is_24h_style());
 	display_value(digitSlots, tickTime->tm_min, 2, true);
+	if (0) {
+		layer_set_hidden(text_layer_get_layer(ampmLayer), false);
+	}
+	text_layer_set_text(ampmLayer, ampm[(tickTime->tm_hour < 12) ? 0 : 1]);
 	display_value(calendarSlots, tickTime->tm_mday, 0, hourLeadingZero);
 
 	snprintf(ym, sizeof(ym), "%04d %s", tickTime->tm_year + 1900, months[tickTime->tm_mon]);
@@ -164,6 +173,12 @@ static void window_load(Window *window) {
 
 		layer_add_child(digitsLayer, slot->layer);
 	}
+	ampmLayer = text_layer_create(
+		GRect(1, WIDGET_BORDER + TIME_DIGIT_H / 2, TIME_DIGIT_W, CALENDAR_TEXT_H)
+	);
+	text_layer_set_font(ampmLayer, fonts_get_system_font(FONT_KEY_GOTHIC_14));
+	text_layer_set_background_color(ampmLayer, GColorClear);
+	layer_add_child(digitSlots[0].layer, text_layer_get_layer(ampmLayer));
 
 	/* Calendar */
 	calendarLayer = layer_create(
@@ -215,6 +230,8 @@ static void window_unload(Window *window) {
 
 	tick_timer_service_unsubscribe();
 
+	layer_remove_from_parent(text_layer_get_layer(ampmLayer));
+	text_layer_destroy(ampmLayer);
 	for (i = 0; i < sizeof(digitSlots) / sizeof(digitSlots[0]); i++) {
 		layer_remove_from_parent(digitSlots[i].layer);
 		layer_destroy(digitSlots[i].layer);
