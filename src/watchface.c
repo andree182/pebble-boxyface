@@ -19,12 +19,13 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #include "watchface.h"
 
 static Window *window;
-static Layer *digitsLayer, *calendarLayer;
+static Layer *digitsLayer, *calendarLayer, *batteryLayer;
 static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
 static int align = -1;
 static int hourLeadingZero = true;
 static int isTimeAmPm;
+static int showBatteryStatus = true;
 #if defined(PBL_BW)
 static GBitmap *grayTexture;
 
@@ -37,10 +38,8 @@ static void update_root_layer(Layer *layer, GContext *ctx) {
 #endif
 
 static void update_calendar_layer(Layer *layer, GContext *ctx) {
-	GRect r;
+	GRect r = layer_get_bounds(layer);
 	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
-
-	r = layer_get_bounds(layer);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
@@ -50,9 +49,30 @@ static void update_calendar_layer(Layer *layer, GContext *ctx) {
 	graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
 }
 
+static void update_battery_layer(Layer *layer, GContext *ctx) {
+	GRect r = layer_get_bounds(layer);
+	BatteryChargeState charge_state = battery_state_service_peek();
+	int i, count;
+	int curPos;
+	int step;
+
+	if (!showBatteryStatus)
+		return;
+
+	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
+
+	count = r.size.w * (100 - charge_state.charge_percent) / 100 / WIDGET_BORDER;
+	step = (charge_state.is_charging ? 2 : 1);
+	for (i = 0, curPos = r.size.w - WIDGET_BORDER;
+		i < count;
+		i += step, curPos -= step * WIDGET_BORDER
+	) {
+		graphics_fill_rect(ctx, GRect(curPos, 0, WIDGET_BORDER, r.size.w), 0, GCornerNone);
+	}
+}
+
 static void update_digits_layer(Layer *layer, GContext *ctx) {
-	GRect r;
-	r = layer_get_bounds(layer);
+	GRect r = layer_get_bounds(layer);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
@@ -144,6 +164,12 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 	layer_mark_dirty(calendarLayer);
 }
 
+static void battery_handler(BatteryChargeState charge_state)
+{
+	(void)charge_state;
+	layer_mark_dirty(batteryLayer);
+}
+
 static void window_load(Window *window) {
 	Layer *windowLayer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(windowLayer);
@@ -153,6 +179,7 @@ static void window_load(Window *window) {
 	int digitsLayerPos;
 	int calendarLayerVPos;
 	int calendarLayerHPos;
+	int batteryLayerPos;
 
 #if defined(PBL_COLOR)
 	window_set_background_color(window, BACKGROUND_COLOR);
@@ -166,14 +193,17 @@ static void window_load(Window *window) {
 		/* Clock on top */
 		digitsLayerPos = BORDER_OFFSET;
 		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
+		batteryLayerPos = 0;
 	} else if (align == 0) {
 		/* Clock in the middle */
 		digitsLayerPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
 		calendarLayerVPos = BORDER_OFFSET;
+		batteryLayerPos = digitsLayerPos - BORDER_OFFSET;
 	} else {
 		/* Clock on the bottom */
 		digitsLayerPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
 		calendarLayerVPos = BORDER_OFFSET;
+		batteryLayerPos = bounds.size.h - BORDER_OFFSET;
 	}
 
 	/* Clock */
@@ -198,6 +228,12 @@ static void window_load(Window *window) {
 
 		layer_add_child(digitsLayer, slot->layer);
 	}
+
+	batteryLayer = layer_create(
+		GRect(0, batteryLayerPos, bounds.size.w, BORDER_OFFSET)
+	);
+	layer_set_update_proc(batteryLayer, update_battery_layer);
+	layer_add_child(window_get_root_layer(window), batteryLayer);
 
 	/* Calendar */
 	calendarLayer = layer_create(
@@ -247,6 +283,7 @@ static void window_load(Window *window) {
 static void window_unload(Window *window) {
 	unsigned i;
 
+	battery_state_service_unsubscribe();
 	tick_timer_service_unsubscribe();
 
 	for (i = 0; i < sizeof(digitSlots) / sizeof(digitSlots[0]); i++) {
@@ -264,6 +301,7 @@ static void window_unload(Window *window) {
 	layer_remove_from_parent(text_layer_get_layer(calendarWDayLayer));
 	text_layer_destroy(calendarWDayLayer);
 	layer_destroy(calendarLayer);
+	layer_destroy(batteryLayer);
 
 #if defined(PBL_BW)
 	gbitmap_destroy(grayTexture);
@@ -279,7 +317,8 @@ static void init(void) {
 	const bool animated = true;
 	window_stack_push(window, animated);
 
-	tick_timer_service_subscribe(MINUTE_UNIT, (TickHandler) tick_handler);	
+	tick_timer_service_subscribe(MINUTE_UNIT, (TickHandler) tick_handler);
+	battery_state_service_subscribe(battery_handler);
 }
 
 static void deinit(void) {
