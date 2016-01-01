@@ -19,10 +19,16 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #include "watchface.h"
 
 static Window *window;
-static Layer *digitsLayer, *calendarLayer, *batteryLayer;
+static Layer *digitsLayer, *ampmLayer, *calendarLayer, *batteryLayer;
 static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
-static int align = -1;
+static int align =
+#if defined(PBL_ROUND)
+	0;
+#else
+	-1;
+#endif
+
 static int hourLeadingZero = true;
 static int isTimeAmPm;
 static int showBatteryStatus = true;
@@ -37,14 +43,23 @@ static void update_root_layer(Layer *layer, GContext *ctx) {
 }
 #endif
 
-static void update_calendar_layer(Layer *layer, GContext *ctx) {
+static void update_halfborder_layer(Layer *layer, GContext *ctx) {
 	GRect r = layer_get_bounds(layer);
+
 	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
 	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+}
+
+static void update_fullborder_layer(Layer *layer, GContext *ctx) {
+	GRect r = layer_get_bounds(layer);
+
+	update_halfborder_layer(layer, ctx);
+
+	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
 	graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
 }
@@ -71,20 +86,14 @@ static void update_battery_layer(Layer *layer, GContext *ctx) {
 	}
 }
 
-static void update_digits_layer(Layer *layer, GContext *ctx) {
+static void update_ampm_layer(Layer *layer, GContext *ctx) {
 	GRect r = layer_get_bounds(layer);
 
-	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
-	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
-
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
-	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
-	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
-
 	if (isTimeAmPm == 0) {
-		graphics_fill_rect(ctx, GRect(0, 2 * WIDGET_BORDER, WIDGET_BORDER, 3 * WIDGET_BORDER), 0, GCornerNone);
+		graphics_fill_rect(ctx, GRect(0, 0, r.size.w, 3 * WIDGET_BORDER), 0, GCornerNone);
 	} else if (isTimeAmPm == 1) {
-		graphics_fill_rect(ctx, GRect(0, 4 * WIDGET_BORDER, WIDGET_BORDER, 3 * WIDGET_BORDER), 0, GCornerNone);
+		graphics_fill_rect(ctx, GRect(0, 2 * WIDGET_BORDER, r.size.w, 3 * WIDGET_BORDER), 0, GCornerNone);
 	}
 }
 
@@ -176,7 +185,8 @@ static void window_load(Window *window) {
 	unsigned i;
 	struct tm *tickTime;
 	DigitSlot *slot;
-	int digitsLayerPos;
+	int digitsLayerHPos;
+	int digitsLayerVPos;
 	int calendarLayerVPos;
 	int calendarLayerHPos;
 	int batteryLayerPos;
@@ -188,29 +198,30 @@ static void window_load(Window *window) {
 	layer_set_update_proc(window_get_root_layer(window), update_root_layer);
 #endif
 
+	digitsLayerHPos = bounds.size.w / 2 - TIME_WIDGET_W / 2;
 	calendarLayerHPos = bounds.size.w / 2 - CALENDAR_WIDGET_W / 2;
 	if (align == -1) {
 		/* Clock on top */
-		digitsLayerPos = BORDER_OFFSET;
+		digitsLayerVPos = BORDER_OFFSET;
 		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
 		batteryLayerPos = 0;
 	} else if (align == 0) {
 		/* Clock in the middle */
-		digitsLayerPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
+		digitsLayerVPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
 		calendarLayerVPos = BORDER_OFFSET;
-		batteryLayerPos = digitsLayerPos - BORDER_OFFSET;
+		batteryLayerPos = digitsLayerVPos - BORDER_OFFSET;
 	} else {
 		/* Clock on the bottom */
-		digitsLayerPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
+		digitsLayerVPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
 		calendarLayerVPos = BORDER_OFFSET;
 		batteryLayerPos = bounds.size.h - BORDER_OFFSET;
 	}
 
 	/* Clock */
 	digitsLayer = layer_create(
-		GRect(0, digitsLayerPos, bounds.size.w, TIME_WIDGET_H)
+		GRect(0, digitsLayerVPos, bounds.size.w, TIME_WIDGET_H)
 	);
-	layer_set_update_proc(digitsLayer, update_digits_layer);
+	layer_set_update_proc(digitsLayer, update_halfborder_layer);
 	layer_add_child(window_get_root_layer(window), digitsLayer);
 
 	for (i = 0; i < sizeof(digitSlots) / sizeof(digitSlots[0]); i++) {
@@ -218,7 +229,7 @@ static void window_load(Window *window) {
 
 		slot->curDigit = 0;
 		slot->layer = layer_create_with_data(
-				GRect(i * TIME_DIGIT_W, WIDGET_BORDER,
+				GRect(digitsLayerHPos + i * TIME_DIGIT_W, WIDGET_BORDER,
 					  TIME_DIGIT_W, TIME_DIGIT_H),
 				sizeof(slot)
 			);
@@ -228,6 +239,11 @@ static void window_load(Window *window) {
 
 		layer_add_child(digitsLayer, slot->layer);
 	}
+	ampmLayer = layer_create(
+		GRect(0, 2 * WIDGET_BORDER, WIDGET_BORDER, 5 * WIDGET_BORDER)
+	);
+	layer_set_update_proc(ampmLayer, update_ampm_layer);
+	layer_add_child(digitsLayer, ampmLayer);
 
 	batteryLayer = layer_create(
 		GRect(0, batteryLayerPos, bounds.size.w, BORDER_OFFSET)
@@ -239,7 +255,7 @@ static void window_load(Window *window) {
 	calendarLayer = layer_create(
 		GRect(calendarLayerHPos, calendarLayerVPos, CALENDAR_WIDGET_W, CALENDAR_WIDGET_H)
 	);
-	layer_set_update_proc(calendarLayer, update_calendar_layer);
+	layer_set_update_proc(calendarLayer, update_fullborder_layer);
 	layer_add_child(window_get_root_layer(window), calendarLayer);
 	for (i = 0; i < sizeof(calendarSlots) / sizeof(calendarSlots[0]); i++) {
 		slot = &calendarSlots[i];
@@ -290,6 +306,8 @@ static void window_unload(Window *window) {
 		layer_remove_from_parent(digitSlots[i].layer);
 		layer_destroy(digitSlots[i].layer);
 	}
+	layer_remove_from_parent(ampmLayer);
+	layer_destroy(ampmLayer);
 	layer_destroy(digitsLayer);
 
 	for (i = 0; i < sizeof(calendarSlots) / sizeof(calendarSlots[0]); i++) {

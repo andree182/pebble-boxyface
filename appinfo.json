@@ -5,7 +5,7 @@
   "companyName": "Andrej Krutak",
   "versionLabel": "0.2",
   "sdkVersion": "3",
-  "targetPlatforms": ["aplite", "basalt"],
+  "targetPlatforms": ["aplite", "basalt", "chalk"],
   "watchapp": {
     "watchface": true
   },

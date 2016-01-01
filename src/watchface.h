@@ -27,6 +27,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #define TIME_DIGIT_ROWS (5)
 
 #define TIME_WIDGET_H (TIME_DIGIT_H + WIDGET_BORDER * 2)
+#define TIME_WIDGET_W (TIME_DIGIT_W * TIME_DIGIT_COLS)
 #define BACKGROUND_COLOR (GColorBlue)
 #define DIGIT_BACKGROUND_COLOR (GColorWhite)
 #define DIGIT_COLOR (GColorBlack)
