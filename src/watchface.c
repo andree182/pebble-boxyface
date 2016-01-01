@@ -6,6 +6,7 @@ static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
 static int align = -1;
 static int hourLeadingZero = true;
+static int isTimeAmPm;
 #if defined(PBL_BW)
 static GBitmap *grayTexture;
 
@@ -33,14 +34,20 @@ static void update_calendar_layer(Layer *layer, GContext *ctx) {
 
 static void update_digits_layer(Layer *layer, GContext *ctx) {
 	GRect r;
-	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
-
 	r = layer_get_bounds(layer);
+
+	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
 	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+
+	if (isTimeAmPm == 0) {
+		graphics_fill_rect(ctx, GRect(0, 2 * WIDGET_BORDER, WIDGET_BORDER, 3 * WIDGET_BORDER), 0, GCornerNone);
+	} else if (isTimeAmPm == 1) {
+		graphics_fill_rect(ctx, GRect(0, 4 * WIDGET_BORDER, WIDGET_BORDER, 3 * WIDGET_BORDER), 0, GCornerNone);
+	}
 }
 
 static void update_digit_slot(Layer *layer, GContext *ctx) {
@@ -81,9 +88,14 @@ static void display_value(DigitSlot *slots, unsigned short value, unsigned short
 	}
 }
 
-static unsigned short handle_12_24(unsigned short hour) {
+static unsigned short handle_12_24(unsigned short hour, int *ampm, int *leadingZero) {
 	if (clock_is_24h_style()) {
+		*leadingZero = hourLeadingZero;
+		*ampm = -1;
 		return hour;
+	} else {
+		*leadingZero = 0;
+		*ampm = (hour < 12) ? 0 : 1;
 	}
 
 	hour %= 12;
@@ -97,8 +109,12 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	};
 	const char *dows[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+	int leadingZero;
+	int hour;
 
-	display_value(digitSlots, handle_12_24(tickTime->tm_hour), 0, hourLeadingZero);
+	hour = handle_12_24(tickTime->tm_hour, &isTimeAmPm, &leadingZero);
+
+	display_value(digitSlots, hour, 0, leadingZero);
 	display_value(digitSlots, tickTime->tm_min, 2, true);
 	display_value(calendarSlots, tickTime->tm_mday, 0, hourLeadingZero);
 
