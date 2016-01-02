@@ -206,7 +206,7 @@ static void window_load(Window *window) {
 	int digitsLayerHPos, digitsLayerVPos;
 	int calendarLayerHPos, calendarLayerVPos;
 	int calendarDigitHPos, calendarDigitVPos;
-	int batteryLayerPos;
+	int batteryLayerPos, batteryLayerH;
 
 #if defined(PBL_COLOR)
 	window_set_background_color(window, BACKGROUND_COLOR);
@@ -222,15 +222,18 @@ static void window_load(Window *window) {
 		digitsLayerVPos = BORDER_OFFSET;
 		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
 		batteryLayerPos = 0;
+		batteryLayerH = BORDER_OFFSET;
 	} else if (align == 0) {
 		/* Clock in the middle */
 		digitsLayerVPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
-		batteryLayerPos = digitsLayerVPos - BORDER_OFFSET;
+		batteryLayerPos = digitsLayerVPos - WIDGET_BORDER;
+		batteryLayerH = WIDGET_BORDER;
 	} else {
 		/* Clock on the bottom */
 		digitsLayerVPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
 		calendarLayerVPos = BORDER_OFFSET;
 		batteryLayerPos = bounds.size.h - BORDER_OFFSET;
+		batteryLayerH = BORDER_OFFSET;
 	}
 
 	/* Clock */
@@ -262,7 +265,7 @@ static void window_load(Window *window) {
 	layer_add_child(digitsLayer, ampmLayer);
 
 	batteryLayer = layer_create(
-		GRect(0, batteryLayerPos, bounds.size.w, BORDER_OFFSET)
+		GRect(0, batteryLayerPos, bounds.size.w, batteryLayerH)
 	);
 	layer_set_update_proc(batteryLayer, update_battery_layer);
 	layer_add_child(window_get_root_layer(window), batteryLayer);
