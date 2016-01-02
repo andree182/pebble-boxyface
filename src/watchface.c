@@ -19,7 +19,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #include "watchface.h"
 
 static Window *window;
-static Layer *digitsLayer, *ampmLayer, *calendarLayer, *batteryLayer;
+static Layer *digitsLayer, *ampmLayer, *calendarLayers[2], *batteryLayer;
 static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
 static int align =
@@ -32,6 +32,13 @@ static int align =
 static int hourLeadingZero = true;
 static int isTimeAmPm;
 static int showBatteryStatus = true;
+static int ignore12h =
+#if defined(PBL_ROUND)
+	true;
+#else
+	false;
+#endif
+
 #if defined(PBL_BW)
 static GBitmap *grayTexture;
 
@@ -43,25 +50,35 @@ static void update_root_layer(Layer *layer, GContext *ctx) {
 }
 #endif
 
-static void update_halfborder_layer(Layer *layer, GContext *ctx) {
+static void update_bordered_layer(Layer *layer, GContext *ctx, int top, int bottom, int side) {
 	GRect r = layer_get_bounds(layer);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
-	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
-	graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+	if (top)
+		graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+	if (bottom)
+		graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+	if (side) {
+		graphics_fill_rect(ctx, GRect(0, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
+		graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
+	}
+}
+
+static void update_sideborder_layer(Layer *layer, GContext *ctx) {
+	update_bordered_layer(layer, ctx, 0, 0, 1);
+}
+static void update_bottomborder_layer(Layer *layer, GContext *ctx) {
+	update_bordered_layer(layer, ctx, 0, 1, 0);
+}
+static void update_halfborder_layer(Layer *layer, GContext *ctx) {
+	update_bordered_layer(layer, ctx, 1, 1, 0);
 }
 
 static void update_fullborder_layer(Layer *layer, GContext *ctx) {
-	GRect r = layer_get_bounds(layer);
-
-	update_halfborder_layer(layer, ctx);
-
-	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
-	graphics_fill_rect(ctx, GRect(0, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
-	graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
+	update_bordered_layer(layer, ctx, 1, 1, 1);
 }
 
 static void update_battery_layer(Layer *layer, GContext *ctx) {
@@ -100,8 +117,8 @@ static void update_ampm_layer(Layer *layer, GContext *ctx) {
 static void update_digit_slot(Layer *layer, GContext *ctx) {
 	DigitSlot *slot = *(DigitSlot**)layer_get_data(layer);
 	int col, row;
-	const int texel_w = (TIME_DIGIT_W - 2 * WIDGET_BORDER) / TIME_DIGIT_COLS;
-	const int texel_h = (TIME_DIGIT_H - 2 * WIDGET_BORDER) / TIME_DIGIT_ROWS;
+	const int texel_w = TIME_DIGIT_W / (TIME_DIGIT_COLS + 2);
+	const int texel_h = TIME_DIGIT_H / (TIME_DIGIT_ROWS + 2);
 
 	if (slot->curDigit < 0)
 		return;
@@ -136,7 +153,7 @@ static void display_value(DigitSlot *slots, unsigned short value, unsigned short
 }
 
 static unsigned short handle_12_24(unsigned short hour, int *ampm, int *leadingZero) {
-	if (clock_is_24h_style()) {
+	if (clock_is_24h_style() || ignore12h) {
 		*leadingZero = hourLeadingZero;
 		*ampm = -1;
 		return hour;
@@ -170,7 +187,8 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 	text_layer_set_text(calendarWDayLayer, dows[tickTime->tm_wday]);
 
 	layer_mark_dirty(digitsLayer);
-	layer_mark_dirty(calendarLayer);
+	layer_mark_dirty(calendarLayers[0]);
+	layer_mark_dirty(calendarLayers[1]);
 }
 
 static void battery_handler(BatteryChargeState charge_state)
@@ -185,10 +203,9 @@ static void window_load(Window *window) {
 	unsigned i;
 	struct tm *tickTime;
 	DigitSlot *slot;
-	int digitsLayerHPos;
-	int digitsLayerVPos;
-	int calendarLayerVPos;
-	int calendarLayerHPos;
+	int digitsLayerHPos, digitsLayerVPos;
+	int calendarLayerHPos, calendarLayerVPos;
+	int calendarDigitHPos, calendarDigitVPos;
 	int batteryLayerPos;
 
 #if defined(PBL_COLOR)
@@ -208,7 +225,6 @@ static void window_load(Window *window) {
 	} else if (align == 0) {
 		/* Clock in the middle */
 		digitsLayerVPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
-		calendarLayerVPos = BORDER_OFFSET;
 		batteryLayerPos = digitsLayerVPos - BORDER_OFFSET;
 	} else {
 		/* Clock on the bottom */
@@ -252,18 +268,69 @@ static void window_load(Window *window) {
 	layer_add_child(window_get_root_layer(window), batteryLayer);
 
 	/* Calendar */
-	calendarLayer = layer_create(
-		GRect(calendarLayerHPos, calendarLayerVPos, CALENDAR_WIDGET_W, CALENDAR_WIDGET_H)
-	);
-	layer_set_update_proc(calendarLayer, update_fullborder_layer);
-	layer_add_child(window_get_root_layer(window), calendarLayer);
+	if (align == 0) {
+		calendarLayers[0] = layer_create(
+			GRect(0, 0, bounds.size.w, CALENDAR_TEXT_H +
+#if defined(PBL_ROUND)
+				2 *
+#endif
+				WIDGET_BORDER
+			)
+		);
+		layer_set_update_proc(calendarLayers[0], update_bottomborder_layer);
+		layer_add_child(window_get_root_layer(window), calendarLayers[0]);
+
+		calendarLayerHPos = bounds.size.h / 2 + TIME_WIDGET_H / 2;
+		calendarLayers[1] = layer_create(
+			GRect(bounds.size.w / 2 - CALENDAR_WIDGET_W / 2, calendarLayerHPos,
+				  CALENDAR_WIDGET_W, bounds.size.h - calendarLayerHPos)
+		);
+		layer_set_update_proc(calendarLayers[1], update_sideborder_layer);
+		layer_add_child(window_get_root_layer(window), calendarLayers[1]);
+
+		calendarYMLayer = text_layer_create(
+#if defined(PBL_ROUND)
+			GRect(0, WIDGET_BORDER - 3, bounds.size.w, CALENDAR_TEXT_H)
+#else
+			GRect(0, -3, bounds.size.w, CALENDAR_TEXT_H)
+#endif
+		);
+		calendarWDayLayer = text_layer_create(
+			GRect(
+				WIDGET_BORDER, TIME_DIGIT_H - TIME_DIGIT_TEXEL_SIZE,
+				CALENDAR_W, CALENDAR_TEXT_H
+			)
+		);
+		calendarDigitVPos = 0;
+		calendarDigitHPos = WIDGET_BORDER;
+	} else {
+		calendarLayers[0] = layer_create(
+			GRect(calendarLayerHPos, calendarLayerVPos, CALENDAR_WIDGET_W, CALENDAR_WIDGET_H)
+		);
+		layer_set_update_proc(calendarLayers[0], update_fullborder_layer);
+		layer_add_child(window_get_root_layer(window), calendarLayers[0]);
+		calendarLayers[1] = calendarLayers[0];
+
+		calendarYMLayer = text_layer_create(
+			GRect(WIDGET_BORDER, WIDGET_BORDER, CALENDAR_W, CALENDAR_TEXT_H)
+		);
+		calendarWDayLayer = text_layer_create(
+			GRect(
+				WIDGET_BORDER, CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - TIME_DIGIT_TEXEL_SIZE,
+				CALENDAR_W, CALENDAR_TEXT_H
+			)
+		);
+
+		calendarDigitVPos = CALENDAR_WIDGET_H / 2 - TIME_DIGIT_H / 2;
+		calendarDigitHPos = WIDGET_BORDER;
+	}
 	for (i = 0; i < sizeof(calendarSlots) / sizeof(calendarSlots[0]); i++) {
 		slot = &calendarSlots[i];
 
 		slot->curDigit = 0;
 		slot->layer = layer_create_with_data(
 				GRect(
-					WIDGET_BORDER + i * TIME_DIGIT_W, CALENDAR_WIDGET_H / 2 - TIME_DIGIT_H / 2,
+					calendarDigitHPos + i * TIME_DIGIT_W, calendarDigitVPos,
 					TIME_DIGIT_W, TIME_DIGIT_H
 				), sizeof(slot)
 			);
@@ -271,23 +338,14 @@ static void window_load(Window *window) {
 		*(DigitSlot **)layer_get_data(slot->layer) = slot;
 		layer_set_update_proc(slot->layer, update_digit_slot);
 
-		layer_add_child(calendarLayer, slot->layer);
+		layer_add_child(calendarLayers[1], slot->layer);
 	}
-	calendarYMLayer = text_layer_create(
-		GRect(WIDGET_BORDER, WIDGET_BORDER, CALENDAR_W, CALENDAR_TEXT_H)
-	);
 	text_layer_set_font(calendarYMLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
 	text_layer_set_text_alignment(calendarYMLayer, GTextAlignmentCenter);
-	layer_add_child(calendarLayer, text_layer_get_layer(calendarYMLayer));
-	calendarWDayLayer = text_layer_create(
-		GRect(
-			WIDGET_BORDER, CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - 4, // HACK: the text would ba too low otherwise
-			CALENDAR_W, CALENDAR_TEXT_H
-		)
-	);
+	layer_add_child(calendarLayers[0], text_layer_get_layer(calendarYMLayer));
 	text_layer_set_font(calendarWDayLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
 	text_layer_set_text_alignment(calendarWDayLayer, GTextAlignmentCenter);
-	layer_add_child(calendarLayer, text_layer_get_layer(calendarWDayLayer));
+	layer_add_child(calendarLayers[1], text_layer_get_layer(calendarWDayLayer));
 
 	// initial values
 	time_t temp;
@@ -318,7 +376,9 @@ static void window_unload(Window *window) {
 	text_layer_destroy(calendarYMLayer);
 	layer_remove_from_parent(text_layer_get_layer(calendarWDayLayer));
 	text_layer_destroy(calendarWDayLayer);
-	layer_destroy(calendarLayer);
+	layer_destroy(calendarLayers[0]);
+	if (calendarLayers[0] != calendarLayers[1])
+		layer_destroy(calendarLayers[1]);
 	layer_destroy(batteryLayer);
 
 #if defined(PBL_BW)

@@ -25,6 +25,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #define TIME_DIGIT_H (42)
 #define TIME_DIGIT_COLS (4)
 #define TIME_DIGIT_ROWS (5)
+#define TIME_DIGIT_TEXEL_SIZE (TIME_DIGIT_H / (TIME_DIGIT_ROWS + 2))
 
 #define TIME_WIDGET_H (TIME_DIGIT_H + WIDGET_BORDER * 2)
 #define TIME_WIDGET_W (TIME_DIGIT_W * TIME_DIGIT_COLS)
