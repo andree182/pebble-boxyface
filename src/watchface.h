@@ -42,6 +42,8 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #define CALENDAR_WIDGET_W (CALENDAR_W + WIDGET_BORDER * 2)
 #define CALENDAR_WIDGET_H (CALENDAR_H + WIDGET_BORDER * 2)
 
+#define FIRSTSHOW_ANIMATION_TIME (1000)
+
 typedef struct {
 	Layer *layer;
 	int   curDigit;
