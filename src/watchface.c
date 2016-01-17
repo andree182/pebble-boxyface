@@ -41,7 +41,7 @@ static int ignore12h =
 #endif
 
 #if defined(PBL_BW)
-static GBitmap *grayTexture;
+static GBitmap *grayTexture25, *grayTexture50;
 #endif
 
 static void update_root_layer(Layer *layer, GContext *ctx) {
@@ -54,11 +54,15 @@ static void update_root_layer(Layer *layer, GContext *ctx) {
 		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR);
 		graphics_fill_rect(ctx, r, 0, GCornerNone);
 #elif defined(PBL_BW)
-		graphics_draw_bitmap_in_rect(ctx, grayTexture, r);
+		graphics_draw_bitmap_in_rect(ctx, grayTexture50, r);
 #endif
 	} else {
+#if defined(PBL_COLOR)
 		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR_NOBT);
 		graphics_fill_rect(ctx, r, 0, GCornerNone);
+#elif defined (PBL_BW)
+		graphics_draw_bitmap_in_rect(ctx, grayTexture25, r);
+#endif
 	}
 }
 
@@ -227,7 +231,8 @@ static void window_load(Window *window) {
 
 	layer_set_update_proc(window_get_root_layer(window), update_root_layer);
 #if defined(PBL_BW)
-	grayTexture = gbitmap_create_with_resource(RESOURCE_ID_GRAY_BG);
+	grayTexture25 = gbitmap_create_with_resource(RESOURCE_ID_GRAY25_BG);
+	grayTexture50 = gbitmap_create_with_resource(RESOURCE_ID_GRAY50_BG);
 #endif
 
 	digitsLayerHPos = bounds.size.w / 2 - TIME_WIDGET_W / 2;
@@ -401,7 +406,8 @@ static void window_unload(Window *window) {
 	layer_destroy(batteryLayer);
 
 #if defined(PBL_BW)
-	gbitmap_destroy(grayTexture);
+	gbitmap_destroy(grayTexture25);
+	gbitmap_destroy(grayTexture50);
 #endif
 }
 
