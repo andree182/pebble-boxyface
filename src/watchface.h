@@ -50,8 +50,18 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 
 typedef struct {
 	Layer *layer;
-	int   curDigit;
+	int prevDigit;
+	int curDigit;
+#define DIGIT_ANIMATION_LENGTH \
+	(ANIMATION_NORMALIZED_MAX - ANIMATION_NORMALIZED_MIN)
+	int phase;
 } DigitSlot;
+
+typedef struct {
+	GRect orig_frame, from_frame, to_frame;
+	PropertyAnimation *pa;
+	struct tm time;
+} CalendarAnimation;
 
 const char digits[][5] = {
 	{

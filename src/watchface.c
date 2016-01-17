@@ -18,7 +18,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "watchface.h"
 
-// #define DEBUG
+#define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_INTERVAL SECOND_UNIT
@@ -51,12 +51,6 @@ static int ignore12h =
 #else
 	false;
 #endif
-
-typedef struct {
-	GRect orig_frame, from_frame, to_frame;
-	PropertyAnimation *pa;
-	struct tm time;
-} CalendarAnimation;
 
 #if defined(PBL_BW)
 static GBitmap *grayTexture25, *grayTexture50;
@@ -168,7 +162,10 @@ static void update_digit_slot(Layer *layer, GContext *ctx)
 
 	graphics_context_set_fill_color(ctx, DIGIT_COLOR);
 
-	for (row = 0; row < TIME_DIGIT_ROWS; row++) {
+	if (slot->phase == 0)
+		return;
+
+	for (row = 0; row < TIME_DIGIT_ROWS * DIGIT_ANIMATION_LENGTH / slot->phase; row++) {
 		char v = digits[slot->curDigit][row];
 		for (col = 0; col < TIME_DIGIT_COLS; col++) {
 			if (v & (1 << (TIME_DIGIT_COLS - col - 1))) {
@@ -185,14 +182,65 @@ static void update_digit_slot(Layer *layer, GContext *ctx)
 	}
 }
 
-static void display_value(DigitSlot *slots, unsigned short value, unsigned short layer_offset, bool leadingZero) {
+static void animate_digit_slot(Animation *animation, const AnimationProgress progress)
+{
+	DigitSlot *slot = animation_get_context(animation);
+
+	slot->phase = progress;
+	layer_mark_dirty(slot->layer);
+}
+
+static const AnimationImplementation animateDigitImpl = {
+	.update = animate_digit_slot,
+};
+
+static void display_value(
+		DigitSlot *slots, unsigned short value,
+		unsigned short layer_offset, bool leadingZero
+) {
 	for (int col = 1; col >= 0; col--) {
 		DigitSlot *slot = &slots[layer_offset + col];
+		slot->prevDigit = slot->curDigit;
 		slot->curDigit = value % 10;
 		if ((slot->curDigit == 0) && (col == 0) && !leadingZero)
 			slot->curDigit = -1;
 		value /= 10;
 	}
+}
+
+static Animation *clockAnims[4], *clockAnim;
+
+static void clock_anim_stopped(Animation *animation, bool finished, void *context)
+{
+	//TODO: Looks like no destroy is needed
+//	int i;
+
+//	animation_destroy(clockAnim);
+//	for (i = 0; i < 4; i++)
+//		animation_destroy(clockAnims[i]);
+}
+
+static void animate_clock(void)
+{
+	int i;
+
+	for (i = 0; i < 4; i++) {
+		clockAnims[i] = animation_create();
+		animation_set_implementation(clockAnims[i], &animateDigitImpl);
+		animation_set_handlers(
+			clockAnims[i], (AnimationHandlers) {.stopped = NULL},
+			&digitSlots[i]
+		);
+	}
+	clockAnim = animation_sequence_create_from_array(
+		clockAnims, sizeof(clockAnims) / sizeof(clockAnims[0])
+	);
+	animation_set_handlers(
+		clockAnim,
+		(AnimationHandlers){.stopped = clock_anim_stopped},
+		NULL
+	);
+	animation_schedule(clockAnim);
 }
 
 static unsigned short handle_12_24(unsigned short hour, int *ampm, int *leadingZero)
@@ -319,16 +367,16 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 #ifdef DEBUG
 	if ((tickTime->tm_sec % 3 != 0) && !first)
 		return;
-	tickTime->tm_hour = tickTime->tm_min;
+	tickTime->tm_hour = tickTime->tm_min % 24;
 	tickTime->tm_min = tickTime->tm_sec;
-	tickTime->tm_mday = tickTime->tm_sec / 6;
+	tickTime->tm_mday = (tickTime->tm_sec / 6) % 31;
 #endif
 
 	hour = handle_12_24(tickTime->tm_hour, &isTimeAmPm, &leadingZero);
 
 	display_value(digitSlots, hour, 0, leadingZero);
 	display_value(digitSlots, tickTime->tm_min, 2, true);
-	layer_mark_dirty(digitsLayer);
+	animate_clock();
 
 	if (first) {
 		set_calendar_contents(tickTime);
@@ -400,12 +448,14 @@ static void window_load(Window *window) {
 	for (i = 0; i < sizeof(digitSlots) / sizeof(digitSlots[0]); i++) {
 		slot = &digitSlots[i];
 
+		slot->prevDigit = -1;
 		slot->curDigit = 0;
 		slot->layer = layer_create_with_data(
 				GRect(digitsLayerHPos + i * TIME_DIGIT_W, WIDGET_BORDER,
 					  TIME_DIGIT_W, TIME_DIGIT_H),
 				sizeof(slot)
 			);
+		slot->phase = DIGIT_ANIMATION_LENGTH * i;
 
 		*(DigitSlot **)layer_get_data(slot->layer) = slot;
 		layer_set_update_proc(slot->layer, update_digit_slot);
@@ -490,6 +540,7 @@ static void window_load(Window *window) {
 					TIME_DIGIT_W, TIME_DIGIT_H
 				), sizeof(slot)
 			);
+		slot->phase = DIGIT_ANIMATION_LENGTH;
 
 		*(DigitSlot **)layer_get_data(slot->layer) = slot;
 		layer_set_update_proc(slot->layer, update_digit_slot);
