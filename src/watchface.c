@@ -41,9 +41,10 @@ static int align =
 #endif
 static int calendarLayerHPos, calendarLayerVPos;
 
-static int hourLeadingZero = true;
+static bool hourLeadingZero = true;
 static int isTimeAmPm;
-static int showBatteryStatus = true;
+static bool showBatteryStatus = true;
+static bool indicateBluetooth = true;
 static int ignore12h =
 #if defined(PBL_ROUND)
 	true;
@@ -59,22 +60,33 @@ typedef struct {
 
 #if defined(PBL_BW)
 static GBitmap *grayTexture;
+#endif
 
 static void update_root_layer(Layer *layer, GContext *ctx)
 {
 	GRect r;
 
 	r = layer_get_bounds(layer);
-	graphics_draw_bitmap_in_rect(ctx, grayTexture, r);
-}
+
+	if (connection_service_peek_pebble_app_connection() || !indicateBluetooth) {
+#if defined(PBL_COLOR)
+		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR);
+		graphics_fill_rect(ctx, r, 0, GCornerNone);
+#elif defined(PBL_BW)
+		graphics_draw_bitmap_in_rect(ctx, grayTexture, r);
 #endif
+	} else {
+		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR_NOBT);
+		graphics_fill_rect(ctx, r, 0, GCornerNone);
+	}
+}
 
 static void update_bordered_layer(Layer *layer, GContext *ctx, int top, int bottom, int side)
 {
 	GRect r = layer_get_bounds(layer);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
-	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
+	graphics_fill_rect(ctx, r, 0, GCornerNone);
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	if (top)
@@ -330,6 +342,11 @@ static void battery_handler(BatteryChargeState charge_state)
 	layer_mark_dirty(batteryLayer);
 }
 
+void bt_handler(bool connected) {
+	(void)connected;
+	layer_mark_dirty(batteryLayer);
+}
+
 static void window_load(Window *window) {
 	Layer *windowLayer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(windowLayer);
@@ -340,11 +357,9 @@ static void window_load(Window *window) {
 	int calendarDigitHPos, calendarDigitVPos;
 	int batteryLayerPos, batteryLayerH;
 
-#if defined(PBL_COLOR)
-	window_set_background_color(window, BACKGROUND_COLOR);
-#elif defined(PBL_BW)
-	grayTexture = gbitmap_create_with_resource(RESOURCE_ID_GRAY_BG);
 	layer_set_update_proc(window_get_root_layer(window), update_root_layer);
+#if defined(PBL_BW)
+	grayTexture = gbitmap_create_with_resource(RESOURCE_ID_GRAY_BG);
 #endif
 
 	digitsLayerHPos = bounds.size.w / 2 - TIME_WIDGET_W / 2;
@@ -492,6 +507,7 @@ static void window_load(Window *window) {
 static void window_unload(Window *window) {
 	unsigned i;
 
+	connection_service_unsubscribe();
 	battery_state_service_unsubscribe();
 	tick_timer_service_unsubscribe();
 
@@ -532,6 +548,9 @@ static void init(void) {
 
 	tick_timer_service_subscribe(UPDATE_INTERVAL, (TickHandler) tick_handler);
 	battery_state_service_subscribe(battery_handler);
+	connection_service_subscribe((ConnectionHandlers) {
+		.pebble_app_connection_handler = bt_handler
+	});
 }
 
 static void deinit(void) {
