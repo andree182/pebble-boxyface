@@ -76,6 +76,7 @@ static void update_root_layer(Layer *layer, GContext *ctx)
 		graphics_draw_bitmap_in_rect(ctx, grayTexture, r);
 #endif
 	} else {
+		// TODO: This makes battery not visible on aplite
 		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR_NOBT);
 		graphics_fill_rect(ctx, r, 0, GCornerNone);
 	}
@@ -344,6 +345,7 @@ static void battery_handler(BatteryChargeState charge_state)
 
 void bt_handler(bool connected) {
 	(void)connected;
+	// TODO: Perhaps rather update the whole background layer
 	layer_mark_dirty(batteryLayer);
 }
 
