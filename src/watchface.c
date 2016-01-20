@@ -18,7 +18,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "watchface.h"
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef DEBUG
 #define UPDATE_INTERVAL SECOND_UNIT
@@ -45,6 +45,7 @@ static bool hourLeadingZero = true;
 static int isTimeAmPm;
 static bool showBatteryStatus = true;
 static bool indicateBluetooth = true;
+static int animationType = 0;
 static int ignore12h =
 #if defined(PBL_ROUND)
 	true;
@@ -150,34 +151,55 @@ static void update_ampm_layer(Layer *layer, GContext *ctx)
 	}
 }
 
+static inline int phase_to_size(int row, int phase, char vPrev, char vNew)
+{
+	if (animationType == 0) {
+		char val = vNew;
+		if (phase == 0) {
+			val = vPrev;
+			phase = DIGIT_ANIMATION_LENGTH;
+		}
+
+		if (val)
+			return (TIME_DIGIT_TEXEL_SIZE / 2) * DIGIT_ANIMATION_LENGTH / phase;
+		else
+			return 0;
+	} else {
+		return 0;
+	}
+}
+
 static void update_digit_slot(Layer *layer, GContext *ctx)
 {
 	DigitSlot *slot = *(DigitSlot**)layer_get_data(layer);
 	int col, row;
-	const int texel_w = TIME_DIGIT_W / (TIME_DIGIT_COLS + 2);
-	const int texel_h = TIME_DIGIT_H / (TIME_DIGIT_ROWS + 2);
 
 	if (slot->curDigit < 0)
 		return;
 
 	graphics_context_set_fill_color(ctx, DIGIT_COLOR);
 
-	if (slot->phase == 0)
-		return;
-
-	for (row = 0; row < TIME_DIGIT_ROWS * DIGIT_ANIMATION_LENGTH / slot->phase; row++) {
-		char v = digits[slot->curDigit][row];
+	for (row = 0; row < TIME_DIGIT_ROWS; row++) {
+		const char vPrev = digits[slot->prevDigit][row];
+		const char vNew = digits[slot->curDigit][row];
 		for (col = 0; col < TIME_DIGIT_COLS; col++) {
-			if (v & (1 << (TIME_DIGIT_COLS - col - 1))) {
-				graphics_fill_rect(ctx,
-					GRect(
-						WIDGET_BORDER + col * texel_w,
-						WIDGET_BORDER + row * texel_h,
-						texel_w, texel_h
-					),
-					0, GCornerNone
-				);
-			}
+			int size = phase_to_size(
+				row, slot->phase,
+				vPrev & (1 << (TIME_DIGIT_COLS - col - 1)),
+				vNew & (1 << (TIME_DIGIT_COLS - col - 1))
+			);
+			if (size == 0)
+				continue;
+
+			int colMid = WIDGET_BORDER + col * TIME_DIGIT_TEXEL_SIZE + TIME_DIGIT_TEXEL_SIZE / 2;
+			int rowMid = WIDGET_BORDER + row * TIME_DIGIT_TEXEL_SIZE + TIME_DIGIT_TEXEL_SIZE / 2;
+			graphics_fill_rect(ctx,
+				GRect(
+					colMid - size, rowMid - size,
+					size * 2, size * 2
+				),
+				0, GCornerNone
+			);
 		}
 	}
 }
@@ -196,12 +218,14 @@ static const AnimationImplementation animateDigitImpl = {
 
 static void display_value(
 		DigitSlot *slots, unsigned short value,
-		unsigned short layer_offset, bool leadingZero
+		unsigned short layer_offset, bool leadingZero, bool resetPhase
 ) {
 	for (int col = 1; col >= 0; col--) {
 		DigitSlot *slot = &slots[layer_offset + col];
 		slot->prevDigit = slot->curDigit;
 		slot->curDigit = value % 10;
+		if (resetPhase)
+			slot->phase = 0;
 		if ((slot->curDigit == 0) && (col == 0) && !leadingZero)
 			slot->curDigit = -1;
 		value /= 10;
@@ -212,17 +236,22 @@ static Animation *clockAnims[4], *clockAnim;
 
 static void clock_anim_stopped(Animation *animation, bool finished, void *context)
 {
-	//TODO: Looks like no destroy is needed
-//	int i;
+#if 0
+// TODO: Looks like no destroy is needed
+	int i;
 
-//	animation_destroy(clockAnim);
-//	for (i = 0; i < 4; i++)
-//		animation_destroy(clockAnims[i]);
+	animation_destroy(clockAnim);
+	for (i = 0; i < 4; i++)
+		animation_destroy(clockAnims[i]);
+#endif
 }
 
 static void animate_clock(void)
 {
 	int i;
+
+	if (clockAnim && animation_is_scheduled(clockAnim))
+		return;
 
 	for (i = 0; i < 4; i++) {
 		clockAnims[i] = animation_create();
@@ -231,6 +260,8 @@ static void animate_clock(void)
 			clockAnims[i], (AnimationHandlers) {.stopped = NULL},
 			&digitSlots[i]
 		);
+		animation_set_duration(clockAnims[i], DIGIT_ANIMATION_DURATION);
+		animation_set_curve(clockAnims[i], AnimationCurveEaseOut);
 	}
 	clockAnim = animation_sequence_create_from_array(
 		clockAnims, sizeof(clockAnims) / sizeof(clockAnims[0])
@@ -240,6 +271,7 @@ static void animate_clock(void)
 		(AnimationHandlers){.stopped = clock_anim_stopped},
 		NULL
 	);
+	animation_set_delay(clockAnim, FIRSTSHOW_ANIMATION_TIME);
 	animation_schedule(clockAnim);
 }
 
@@ -266,7 +298,7 @@ static void set_calendar_contents(struct tm *tickTime)
 	};
 	const char *dows[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
-	display_value(calendarSlots, tickTime->tm_mday, 0, hourLeadingZero);
+	display_value(calendarSlots, tickTime->tm_mday, 0, hourLeadingZero, false);
 	snprintf(ym, sizeof(ym), "%04d %s", tickTime->tm_year + 1900, months[tickTime->tm_mon]);
 	text_layer_set_text(calendarYMLayer, ym);
 	text_layer_set_text(calendarWDayLayer, dows[tickTime->tm_wday]);
@@ -357,7 +389,7 @@ static void destroy_calendar_fadeout(Animation *animation, bool finished, void *
 	property_animation_destroy((PropertyAnimation*)animation);
 }
 
-static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
+static void tick_handler2(struct tm *tickTime, TimeUnits unitsChanged, bool resetPhase)
 {
 	static bool first = true;
 	static struct tm lastTime;
@@ -374,8 +406,8 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 
 	hour = handle_12_24(tickTime->tm_hour, &isTimeAmPm, &leadingZero);
 
-	display_value(digitSlots, hour, 0, leadingZero);
-	display_value(digitSlots, tickTime->tm_min, 2, true);
+	display_value(digitSlots, hour, 0, leadingZero, resetPhase);
+	display_value(digitSlots, tickTime->tm_min, 2, true, resetPhase);
 	animate_clock();
 
 	if (first) {
@@ -387,6 +419,12 @@ static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 
 	lastTime = *tickTime;
 }
+
+static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
+{
+	tick_handler2(tickTime, unitsChanged, true);
+}
+
 
 static void battery_handler(BatteryChargeState charge_state)
 {
@@ -448,14 +486,14 @@ static void window_load(Window *window) {
 	for (i = 0; i < sizeof(digitSlots) / sizeof(digitSlots[0]); i++) {
 		slot = &digitSlots[i];
 
-		slot->prevDigit = -1;
+		slot->prevDigit = 0;
 		slot->curDigit = 0;
 		slot->layer = layer_create_with_data(
 				GRect(digitsLayerHPos + i * TIME_DIGIT_W, WIDGET_BORDER,
 					  TIME_DIGIT_W, TIME_DIGIT_H),
 				sizeof(slot)
 			);
-		slot->phase = DIGIT_ANIMATION_LENGTH * i;
+		slot->phase = DIGIT_ANIMATION_LENGTH;
 
 		*(DigitSlot **)layer_get_data(slot->layer) = slot;
 		layer_set_update_proc(slot->layer, update_digit_slot);
@@ -558,7 +596,7 @@ static void window_load(Window *window) {
 	time_t temp;
 	temp = time(NULL);
 	tickTime = localtime(&temp);
-	tick_handler(tickTime, MINUTE_UNIT);
+	tick_handler2(tickTime, MINUTE_UNIT, false);
 }
 
 static void window_unload(Window *window) {

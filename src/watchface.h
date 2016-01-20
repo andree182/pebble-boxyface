@@ -37,6 +37,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #define DIGIT_BACKGROUND_COLOR (GColorWhite)
 #define DIGIT_COLOR (GColorBlack)
 #define DIGIT_BORDER_COLOR (GColorBlack)
+#define DIGIT_ANIMATION_DURATION (300)
 
 #define CALENDAR_TEXT_FONT FONT_KEY_GOTHIC_18_BOLD
 #define CALENDAR_TEXT_H (18)
