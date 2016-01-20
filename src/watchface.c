@@ -26,8 +26,10 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 #define UPDATE_INTERVAL MINUTE_UNIT
 #endif
 
-static void calendar_fadeout_stopped(Animation *animation, bool finished, void *data);
-static void destroy_calendar_fadeout(Animation *animation, bool finished, void *data);
+static void calendar_fadeout_stopped(
+	Animation *animation, bool finished, void *data);
+static void destroy_calendar_fadeout(
+	Animation *animation, bool finished, void *data);
 
 static Window *window;
 static Layer *digitsLayer, *ampmLayer, *calendarLayers[2], *batteryLayer;
@@ -80,7 +82,9 @@ static void update_root_layer(Layer *layer, GContext *ctx)
 	}
 }
 
-static void update_bordered_layer(Layer *layer, GContext *ctx, int top, int bottom, int side)
+static void update_bordered_layer(
+	Layer *layer, GContext *ctx, int top, int bottom, int side
+)
 {
 	GRect r = layer_get_bounds(layer);
 
@@ -89,12 +93,22 @@ static void update_bordered_layer(Layer *layer, GContext *ctx, int top, int bott
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	if (top)
-		graphics_fill_rect(ctx, GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+		graphics_fill_rect(ctx,
+			GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
 	if (bottom)
-		graphics_fill_rect(ctx, GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER), 0, GCornerNone);
+		graphics_fill_rect(ctx,
+			GRect(0, r.size.h - WIDGET_BORDER, r.size.w, WIDGET_BORDER),
+			0, GCornerNone
+		);
 	if (side) {
-		graphics_fill_rect(ctx, GRect(0, 0, WIDGET_BORDER, r.size.h), 0, GCornerNone);
-		graphics_fill_rect(ctx, GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h), 0, GCornerNone);
+		graphics_fill_rect(ctx,
+			GRect(0, 0, WIDGET_BORDER, r.size.h),
+			0, GCornerNone
+		);
+		graphics_fill_rect(ctx,
+			GRect(r.size.w - WIDGET_BORDER, 0, r.size.w, r.size.h),
+			0, GCornerNone
+		);
 	}
 }
 
@@ -135,7 +149,9 @@ static void update_battery_layer(Layer *layer, GContext *ctx)
 		i < count;
 		i += step, curPos -= step * WIDGET_BORDER
 	) {
-		graphics_fill_rect(ctx, GRect(curPos, 0, WIDGET_BORDER, r.size.w), 0, GCornerNone);
+		graphics_fill_rect(ctx,
+			GRect(curPos, 0, WIDGET_BORDER, r.size.w), 0, GCornerNone
+		);
 	}
 }
 
@@ -145,9 +161,14 @@ static void update_ampm_layer(Layer *layer, GContext *ctx)
 
 	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
 	if (isTimeAmPm == 0) {
-		graphics_fill_rect(ctx, GRect(0, 0, r.size.w, 3 * WIDGET_BORDER), 0, GCornerNone);
+		graphics_fill_rect(ctx,
+			GRect(0, 0, r.size.w, 3 * WIDGET_BORDER), 0, GCornerNone
+		);
 	} else if (isTimeAmPm == 1) {
-		graphics_fill_rect(ctx, GRect(0, 2 * WIDGET_BORDER, r.size.w, 3 * WIDGET_BORDER), 0, GCornerNone);
+		graphics_fill_rect(ctx,
+			GRect(0, 2 * WIDGET_BORDER, r.size.w, 3 * WIDGET_BORDER),
+			0, GCornerNone
+		);
 	}
 }
 
@@ -191,8 +212,10 @@ static void update_digit_slot(Layer *layer, GContext *ctx)
 			if (size == 0)
 				continue;
 
-			int colMid = WIDGET_BORDER + col * TIME_DIGIT_TEXEL_SIZE + TIME_DIGIT_TEXEL_SIZE / 2;
-			int rowMid = WIDGET_BORDER + row * TIME_DIGIT_TEXEL_SIZE + TIME_DIGIT_TEXEL_SIZE / 2;
+			int colMid = WIDGET_BORDER +
+				col * TIME_DIGIT_TEXEL_SIZE + TIME_DIGIT_TEXEL_SIZE / 2;
+			int rowMid = WIDGET_BORDER +
+				row * TIME_DIGIT_TEXEL_SIZE + TIME_DIGIT_TEXEL_SIZE / 2;
 			graphics_fill_rect(ctx,
 				GRect(
 					colMid - size, rowMid - size,
@@ -204,7 +227,9 @@ static void update_digit_slot(Layer *layer, GContext *ctx)
 	}
 }
 
-static void animate_digit_slot(Animation *animation, const AnimationProgress progress)
+static void animate_digit_slot(
+	Animation *animation, const AnimationProgress progress
+)
 {
 	DigitSlot *slot = animation_get_context(animation);
 
@@ -275,7 +300,9 @@ static void animate_clock(void)
 	animation_schedule(clockAnim);
 }
 
-static unsigned short handle_12_24(unsigned short hour, int *ampm, int *leadingZero)
+static unsigned short handle_12_24(
+	unsigned short hour, int *ampm, int *leadingZero
+)
 {
 	if (clock_is_24h_style() || ignore12h) {
 		*leadingZero = hourLeadingZero;
@@ -294,12 +321,15 @@ static void set_calendar_contents(struct tm *tickTime)
 {
 	static char ym[16];
 	const char *months[] = {
-		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
 	};
 	const char *dows[] = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
 	display_value(calendarSlots, tickTime->tm_mday, 0, hourLeadingZero, false);
-	snprintf(ym, sizeof(ym), "%04d %s", tickTime->tm_year + 1900, months[tickTime->tm_mon]);
+	snprintf(ym, sizeof(ym), "%04d %s",
+		tickTime->tm_year + 1900, months[tickTime->tm_mon]
+	);
 	text_layer_set_text(calendarYMLayer, ym);
 	text_layer_set_text(calendarWDayLayer, dows[tickTime->tm_wday]);
 
@@ -367,12 +397,18 @@ static void animate_calendar(struct tm *tickTime, bool first, bool fadeOut)
 		animation_unschedule((Animation*) animations[1].pa);
 	}
 
-	animate_calendar_layer(&animations[0], calendarLayers[0], fadeOut, first, true);
-	if (calendarLayers[0] != calendarLayers[1])
-		animate_calendar_layer(&animations[1], calendarLayers[1], fadeOut, first, false);
+	animate_calendar_layer(
+		&animations[0], calendarLayers[0], fadeOut, first, true
+	);
+	if (calendarLayers[0] != calendarLayers[1]) {
+		animate_calendar_layer(
+			&animations[1], calendarLayers[1], fadeOut, first, false
+		);
+	}
 }
 
-static void calendar_fadeout_stopped(Animation *animation, bool finished, void *data)
+static void calendar_fadeout_stopped(
+	Animation *animation, bool finished, void *data)
 {
 	CalendarAnimation *calanim = data;
 
@@ -382,14 +418,16 @@ static void calendar_fadeout_stopped(Animation *animation, bool finished, void *
 	animate_calendar(&calanim->time, false, false);
 }
 
-static void destroy_calendar_fadeout(Animation *animation, bool finished, void *data)
+static void destroy_calendar_fadeout(
+	Animation *animation, bool finished, void *data)
 {
 	(void)finished;
 	(void)data;
 	property_animation_destroy((PropertyAnimation*)animation);
 }
 
-static void tick_handler2(struct tm *tickTime, TimeUnits unitsChanged, bool resetPhase)
+static void tick_handler2(
+	struct tm *tickTime, TimeUnits unitsChanged, bool resetPhase)
 {
 	static bool first = true;
 	static struct tm lastTime;
@@ -549,7 +587,8 @@ static void window_load(Window *window) {
 		calendarDigitHPos = WIDGET_BORDER;
 	} else {
 		calendarLayers[0] = layer_create(
-			GRect(bounds.size.w, calendarLayerVPos, CALENDAR_WIDGET_W, CALENDAR_WIDGET_H)
+			GRect(bounds.size.w, calendarLayerVPos,
+				  CALENDAR_WIDGET_W, CALENDAR_WIDGET_H)
 		);
 		layer_set_update_proc(calendarLayers[0], update_fullborder_layer);
 		layer_add_child(window_get_root_layer(window), calendarLayers[0]);
@@ -560,7 +599,8 @@ static void window_load(Window *window) {
 		);
 		calendarWDayLayer = text_layer_create(
 			GRect(
-				WIDGET_BORDER, CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - TIME_DIGIT_TEXEL_SIZE,
+				WIDGET_BORDER,
+				CALENDAR_WIDGET_H / 2 + TIME_DIGIT_H / 2 - TIME_DIGIT_TEXEL_SIZE,
 				CALENDAR_W, CALENDAR_TEXT_H
 			)
 		);
