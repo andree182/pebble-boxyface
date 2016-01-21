@@ -476,6 +476,11 @@ void bt_handler(bool connected) {
 	layer_mark_dirty(batteryLayer);
 }
 
+void tap_handler(AccelAxisType axis, int32_t direction)
+{
+	animate_clock();
+}
+
 static void window_load(Window *window) {
 	Layer *windowLayer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(windowLayer);
@@ -642,6 +647,7 @@ static void window_load(Window *window) {
 static void window_unload(Window *window) {
 	unsigned i;
 
+	accel_tap_service_unsubscribe();
 	connection_service_unsubscribe();
 	battery_state_service_unsubscribe();
 	tick_timer_service_unsubscribe();
@@ -687,6 +693,7 @@ static void init(void) {
 	connection_service_subscribe((ConnectionHandlers) {
 		.pebble_app_connection_handler = bt_handler
 	});
+	accel_tap_service_subscribe(tap_handler);
 }
 
 static void deinit(void) {
