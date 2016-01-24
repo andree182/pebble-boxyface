@@ -516,22 +516,32 @@ static void create_layers(void)
 	calendarLayerHPos = bounds.size.w / 2 - CALENDAR_WIDGET_W / 2;
 	if (layout == -1) {
 		/* Clock on top */
+#if defined(PBL_ROUND)
+		digitsLayerVPos = 2 * BORDER_OFFSET;
+		batteryLayerPos = digitsLayerVPos + TIME_WIDGET_H;
+#else
 		digitsLayerVPos = BORDER_OFFSET;
-		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
 		batteryLayerPos = 0;
+#endif
 		batteryLayerH = BORDER_OFFSET;
+		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
 	} else if (layout == 0) {
 		/* Clock in the middle */
 		digitsLayerVPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
-		calendarLayerVPos = bounds.size.h / 2 + TIME_WIDGET_H / 2;
 		batteryLayerPos = digitsLayerVPos - WIDGET_BORDER;
 		batteryLayerH = WIDGET_BORDER;
+		calendarLayerVPos = bounds.size.h / 2 + TIME_WIDGET_H / 2;
 	} else {
 		/* Clock on the bottom */
+#if defined(PBL_ROUND)
+		digitsLayerVPos = bounds.size.h - 2 * BORDER_OFFSET - TIME_WIDGET_H;
+		batteryLayerPos = digitsLayerVPos - BORDER_OFFSET;
+#else
 		digitsLayerVPos = bounds.size.h - BORDER_OFFSET - TIME_WIDGET_H;
-		calendarLayerVPos = BORDER_OFFSET;
 		batteryLayerPos = bounds.size.h - BORDER_OFFSET;
+#endif
 		batteryLayerH = BORDER_OFFSET;
+		calendarLayerVPos = BORDER_OFFSET;
 	}
 
 	/* Clock */
