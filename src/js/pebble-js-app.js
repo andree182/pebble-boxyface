@@ -3,8 +3,8 @@ Pebble.addEventListener('ready', function() {
 });
 
 Pebble.addEventListener('showConfiguration', function() {
-//   var url = 'https://rawgit.com/pebble-examples/design-guides-slate-config/master/config/index.html';
-	var url = 'http://10.0.0.21/index.html';
+	// var url = 'http://10.0.0.21/index.html';
+	var url = 'http://andree182.github.io/pebble-boxyface/config/';
 	console.log('Showing configuration page: ' + url);
 
 	Pebble.openURL(url);
