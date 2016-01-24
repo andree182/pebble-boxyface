@@ -32,6 +32,8 @@ static void destroy_calendar_fadeout(
 	Animation *animation, bool finished, void *data);
 static void init(void);
 static void deinit(void);
+static void create_layers(void);
+static void destroy_layers(void);
 
 /* Resources and environment properties */
 #if defined(PBL_BW)
@@ -42,6 +44,7 @@ static Layer *digitsLayer, *ampmLayer, *calendarLayers[2], *batteryLayer;
 static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
 static int calendarLayerHPos, calendarLayerVPos;
+static bool firstCalendarShow = true;
 static int isTimeAmPm;
 static int ignore12h =
 #if defined(PBL_ROUND)
@@ -51,12 +54,7 @@ static int ignore12h =
 #endif
 
 /* Configuration */
-static int align =
-#if defined(PBL_ROUND)
-	0;
-#else
-	-1;
-#endif
+static int layout;
 
 static bool hourLeadingZero;
 static bool showBatteryStatus;
@@ -76,6 +74,7 @@ enum BoxyfaceKey {
 	KEY_TEXT_BG_COLOR = 4,
 	KEY_HOUR_LEADING_ZERO = 5,
 	KEY_SHOW_BATTERY_STATUS = 6,
+	KEY_LAYOUT = 7,
 };
 
 static void update_root_layer(Layer *layer, GContext *ctx)
@@ -99,6 +98,9 @@ static void update_root_layer(Layer *layer, GContext *ctx)
 		graphics_draw_bitmap_in_rect(ctx, grayTexture25, r);
 #endif
 	}
+
+	text_layer_set_text_color(calendarYMLayer, colorText);
+	text_layer_set_text_color(calendarWDayLayer, colorText);
 }
 
 static void update_bordered_layer(
@@ -448,7 +450,6 @@ static void destroy_calendar_fadeout(
 static void tick_handler2(
 	struct tm *tickTime, TimeUnits unitsChanged, bool resetPhase)
 {
-	static bool first = true;
 	static struct tm lastTime;
 	int leadingZero;
 	int hour;
@@ -467,12 +468,12 @@ static void tick_handler2(
 	display_value(digitSlots, tickTime->tm_min, 2, true, resetPhase);
 	animate_clock();
 
-	if (first) {
+	if (firstCalendarShow) {
 		set_calendar_contents(tickTime);
-		animate_calendar(tickTime, first, false);
-		first = false;
+		animate_calendar(tickTime, firstCalendarShow, false);
+		firstCalendarShow = false;
 	} else if ((tickTime->tm_mday != lastTime.tm_mday))
-		animate_calendar(tickTime, first, true);
+		animate_calendar(tickTime, firstCalendarShow, true);
 
 	lastTime = *tickTime;
 }
@@ -489,42 +490,37 @@ static void battery_handler(BatteryChargeState charge_state)
 	layer_mark_dirty(batteryLayer);
 }
 
-void bt_handler(bool connected) {
+static void bt_handler(bool connected) {
 	(void)connected;
 	// TODO: Perhaps rather update the whole background layer
 	layer_mark_dirty(batteryLayer);
 }
 
-void tap_handler(AccelAxisType axis, int32_t direction)
+static void tap_handler(AccelAxisType axis, int32_t direction)
 {
 	animate_clock();
 }
 
-static void window_load(Window *window) {
+static void create_layers(void)
+{
+	struct tm *tickTime;
 	Layer *windowLayer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(windowLayer);
-	unsigned i;
-	struct tm *tickTime;
 	DigitSlot *slot;
 	int digitsLayerHPos, digitsLayerVPos;
 	int calendarDigitHPos, calendarDigitVPos;
 	int batteryLayerPos, batteryLayerH;
-
-	layer_set_update_proc(window_get_root_layer(window), update_root_layer);
-#if defined(PBL_BW)
-	grayTexture25 = gbitmap_create_with_resource(RESOURCE_ID_GRAY25_BG);
-	grayTexture50 = gbitmap_create_with_resource(RESOURCE_ID_GRAY50_BG);
-#endif
+	unsigned i;
 
 	digitsLayerHPos = bounds.size.w / 2 - TIME_WIDGET_W / 2;
 	calendarLayerHPos = bounds.size.w / 2 - CALENDAR_WIDGET_W / 2;
-	if (align == -1) {
+	if (layout == -1) {
 		/* Clock on top */
 		digitsLayerVPos = BORDER_OFFSET;
 		calendarLayerVPos = bounds.size.h - BORDER_OFFSET - CALENDAR_WIDGET_H;
 		batteryLayerPos = 0;
 		batteryLayerH = BORDER_OFFSET;
-	} else if (align == 0) {
+	} else if (layout == 0) {
 		/* Clock in the middle */
 		digitsLayerVPos = bounds.size.h / 2 - TIME_WIDGET_H / 2;
 		calendarLayerVPos = bounds.size.h / 2 + TIME_WIDGET_H / 2;
@@ -575,7 +571,7 @@ static void window_load(Window *window) {
 	layer_add_child(window_get_root_layer(window), batteryLayer);
 
 	/* Calendar */
-	if (align == 0) {
+	if (layout == 0) {
 		calendarLayers[1] = layer_create(
 			GRect(bounds.size.w, 0, bounds.size.w, CALENDAR_TEXT_H +
 #if defined(PBL_ROUND)
@@ -649,6 +645,7 @@ static void window_load(Window *window) {
 
 		layer_add_child(calendarLayers[0], slot->layer);
 	}
+
 	text_layer_set_font(calendarYMLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
 	text_layer_set_text_alignment(calendarYMLayer, GTextAlignmentCenter);
 	text_layer_set_background_color(calendarYMLayer, GColorClear);
@@ -657,6 +654,7 @@ static void window_load(Window *window) {
 	text_layer_set_text_alignment(calendarWDayLayer, GTextAlignmentCenter);
 	text_layer_set_background_color(calendarWDayLayer, GColorClear);
 	layer_add_child(calendarLayers[0], text_layer_get_layer(calendarWDayLayer));
+	firstCalendarShow = true;
 
 	// initial values
 	time_t temp;
@@ -665,15 +663,9 @@ static void window_load(Window *window) {
 	tick_handler2(tickTime, MINUTE_UNIT, false);
 }
 
-static void window_unload(Window *window) {
+static void destroy_layers(void)
+{
 	unsigned i;
-
-	app_message_deregister_callbacks();
-
-	accel_tap_service_unsubscribe();
-	connection_service_unsubscribe();
-	battery_state_service_unsubscribe();
-	tick_timer_service_unsubscribe();
 
 	for (i = 0; i < sizeof(digitSlots) / sizeof(digitSlots[0]); i++) {
 		layer_remove_from_parent(digitSlots[i].layer);
@@ -702,11 +694,40 @@ static void window_unload(Window *window) {
 #endif
 }
 
-void storage_config_load(void)
+static void window_load(Window *window)
+{
+	layer_set_update_proc(window_get_root_layer(window), update_root_layer);
+#if defined(PBL_BW)
+	grayTexture25 = gbitmap_create_with_resource(RESOURCE_ID_GRAY25_BG);
+	grayTexture50 = gbitmap_create_with_resource(RESOURCE_ID_GRAY50_BG);
+#endif
+
+	create_layers();
+}
+
+static void window_unload(Window *window)
+{
+	app_message_deregister_callbacks();
+
+	accel_tap_service_unsubscribe();
+	connection_service_unsubscribe();
+	battery_state_service_unsubscribe();
+	tick_timer_service_unsubscribe();
+
+	destroy_layers();
+}
+
+static void storage_config_load(void)
 {
 #define PERSIST_LOAD_BOOL(dest, key, dflt) \
 	if (persist_exists(key)) \
 		dest = persist_read_bool(key); \
+	else \
+		dest = dflt;
+
+#define PERSIST_LOAD_INT(dest, key, dflt) \
+	if (persist_exists(key)) \
+		dest = persist_read_int(key); \
 	else \
 		dest = dflt;
 
@@ -726,11 +747,17 @@ void storage_config_load(void)
 	PERSIST_LOAD_BOOL(hourLeadingZero, KEY_HOUR_LEADING_ZERO, true);
 	PERSIST_LOAD_BOOL(showBatteryStatus, KEY_SHOW_BATTERY_STATUS, true);
 
+#if defined(PBL_ROUND)
+	PERSIST_LOAD_INT(layout, KEY_LAYOUT, 0);
+#else
+	PERSIST_LOAD_INT(layout, KEY_LAYOUT, -1);
+#endif
+
 	indicateBluetooth = true;
 	animationType = 0;
 }
 
-void storage_config_save(void)
+static void storage_config_save(void)
 {
 #ifndef PBL_BW
 	persist_write_int(KEY_BG_BT_COLOR, colorBgBt.argb);
@@ -741,6 +768,8 @@ void storage_config_save(void)
 
 	persist_write_bool(KEY_HOUR_LEADING_ZERO, hourLeadingZero);
 	persist_write_bool(KEY_SHOW_BATTERY_STATUS, showBatteryStatus);
+
+	persist_write_int(KEY_LAYOUT, layout);
 }
 
 static void inbox_received_handler(DictionaryIterator *iter, void *context)
@@ -753,10 +782,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context)
 	colorBgText = GColorFromHEX(dict_find(iter, KEY_TEXT_BG_COLOR)->value[0].uint32);
 	hourLeadingZero = dict_find(iter, KEY_HOUR_LEADING_ZERO)->value[0].uint8;
 	showBatteryStatus = dict_find(iter, KEY_SHOW_BATTERY_STATUS)->value[0].uint8;
+	layout = dict_find(iter, KEY_LAYOUT)->value[0].int8;
 
-	// TODO: reconfigure watchface if align changed
-	Layer *windowLayer = window_get_root_layer(window);
-	layer_mark_dirty(windowLayer);
+	destroy_layers();
+	create_layers();
 
 	storage_config_save();
 }

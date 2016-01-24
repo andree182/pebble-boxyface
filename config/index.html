@@ -65,8 +65,17 @@
           <input id='KEY_SHOW_BATTERY_STATUS' type='checkbox' class='item-toggle' checked>
         </label>
       </div>
+      <div class='item-container-content'>
+        <label class="item">
+          Layout
+          <select id="KEY_LAYOUT" dir='rtl' class="item-select">
+            <option class="item-select-option" value="-1">Clock on the top</option>
+            <option class="item-select-option" value="0" selected>Clock in the middle</option>
+            <option class="item-select-option" value="1">Clock on the bottom</option>
+          </select>
+        </label>
+      </div>
     </div>
-
 
     <div class='item-container'>
       <div class='item-container-content'>
@@ -90,6 +99,7 @@
 	var KEY_TEXT_BG_COLOR = document.getElementById('KEY_TEXT_BG_COLOR');
 	var KEY_HOUR_LEADING_ZERO = document.getElementById('KEY_HOUR_LEADING_ZERO');
 	var KEY_SHOW_BATTERY_STATUS = document.getElementById('KEY_SHOW_BATTERY_STATUS');
+	var KEY_LAYOUT = document.getElementById('KEY_LAYOUT');
 
 	function getConfigData() {
 		var options = {
@@ -98,7 +108,8 @@
 			'KEY_TEXT_COLOR': KEY_TEXT_COLOR.value,
 			'KEY_TEXT_BG_COLOR': KEY_TEXT_BG_COLOR.value,
 			'KEY_HOUR_LEADING_ZERO': KEY_HOUR_LEADING_ZERO.checked,
-			'KEY_SHOW_BATTERY_STATUS': KEY_SHOW_BATTERY_STATUS.checked
+			'KEY_SHOW_BATTERY_STATUS': KEY_SHOW_BATTERY_STATUS.checked,
+			'KEY_LAYOUT': parseInt(KEY_LAYOUT.value),
 		};
 
 		// Save for next launch
@@ -140,6 +151,7 @@
 			KEY_TEXT_BG_COLOR.value = localStorage['KEY_TEXT_BG_COLOR'];
 			KEY_HOUR_LEADING_ZERO.checked = JSON.parse(localStorage['KEY_HOUR_LEADING_ZERO']);
 			KEY_SHOW_BATTERY_STATUS.checked = JSON.parse(localStorage['KEY_SHOW_BATTERY_STATUS']);
+			KEY_LAYOUT.value = localStorage['KEY_LAYOUT'];
 		}
 	})();
   </script>

@@ -17,7 +17,8 @@
     "KEY_TEXT_COLOR": 3,
     "KEY_TEXT_BG_COLOR": 4,
     "KEY_HOUR_LEADING_ZERO": 5,
-    "KEY_SHOW_BATTERY_STATUS": 6
+    "KEY_SHOW_BATTERY_STATUS": 6,
+    "KEY_LAYOUT" : 7
   },
   "resources": {
     "media": [
