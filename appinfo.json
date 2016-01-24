@@ -9,6 +9,16 @@
   "watchapp": {
     "watchface": true
   },
+  "capabilities": [ "configurable" ],
+  "appKeys": {
+    "KEY_CFG_LOCK": 0,
+    "KEY_BG_BT_COLOR": 1,
+    "KEY_BG_NOBT_COLOR": 2,
+    "KEY_TEXT_COLOR": 3,
+    "KEY_TEXT_BG_COLOR": 4,
+    "KEY_HOUR_LEADING_ZERO": 5,
+    "KEY_SHOW_BATTERY_STATUS": 6
+  },
   "resources": {
     "media": [
       {

@@ -30,24 +30,19 @@ static void calendar_fadeout_stopped(
 	Animation *animation, bool finished, void *data);
 static void destroy_calendar_fadeout(
 	Animation *animation, bool finished, void *data);
+static void init(void);
+static void deinit(void);
 
+/* Resources and environment properties */
+#if defined(PBL_BW)
+static GBitmap *grayTexture25, *grayTexture50;
+#endif
 static Window *window;
 static Layer *digitsLayer, *ampmLayer, *calendarLayers[2], *batteryLayer;
 static DigitSlot digitSlots[4], calendarSlots[2];
 static TextLayer *calendarYMLayer, *calendarWDayLayer;
-static int align =
-#if defined(PBL_ROUND)
-	0;
-#else
-	-1;
-#endif
 static int calendarLayerHPos, calendarLayerVPos;
-
-static bool hourLeadingZero = true;
 static int isTimeAmPm;
-static bool showBatteryStatus = true;
-static bool indicateBluetooth = true;
-static int animationType = 0;
 static int ignore12h =
 #if defined(PBL_ROUND)
 	true;
@@ -55,9 +50,33 @@ static int ignore12h =
 	false;
 #endif
 
-#if defined(PBL_BW)
-static GBitmap *grayTexture25, *grayTexture50;
+/* Configuration */
+static int align =
+#if defined(PBL_ROUND)
+	0;
+#else
+	-1;
 #endif
+
+static bool hourLeadingZero;
+static bool showBatteryStatus;
+static bool indicateBluetooth;
+static int animationType;
+static GColor8
+#ifndef PBL_BW
+	colorBgBt, colorBgNoBt,
+#endif
+	colorText, colorBgText;
+
+enum BoxyfaceKey {
+	KEY_CFG_LOCK = 0,
+	KEY_BG_BT_COLOR = 1,
+	KEY_BG_NOBT_COLOR = 2,
+	KEY_TEXT_COLOR = 3,
+	KEY_TEXT_BG_COLOR = 4,
+	KEY_HOUR_LEADING_ZERO = 5,
+	KEY_SHOW_BATTERY_STATUS = 6,
+};
 
 static void update_root_layer(Layer *layer, GContext *ctx)
 {
@@ -67,14 +86,14 @@ static void update_root_layer(Layer *layer, GContext *ctx)
 
 	if (connection_service_peek_pebble_app_connection() || !indicateBluetooth) {
 #if defined(PBL_COLOR)
-		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR);
+		graphics_context_set_fill_color(ctx, colorBgBt);
 		graphics_fill_rect(ctx, r, 0, GCornerNone);
 #elif defined(PBL_BW)
 		graphics_draw_bitmap_in_rect(ctx, grayTexture50, r);
 #endif
 	} else {
 #if defined(PBL_COLOR)
-		graphics_context_set_fill_color(ctx, BACKGROUND_COLOR_NOBT);
+		graphics_context_set_fill_color(ctx, colorBgNoBt);
 		graphics_fill_rect(ctx, r, 0, GCornerNone);
 #elif defined (PBL_BW)
 		graphics_draw_bitmap_in_rect(ctx, grayTexture25, r);
@@ -88,10 +107,10 @@ static void update_bordered_layer(
 {
 	GRect r = layer_get_bounds(layer);
 
-	graphics_context_set_fill_color(ctx, DIGIT_BACKGROUND_COLOR);
+	graphics_context_set_fill_color(ctx, colorBgText);
 	graphics_fill_rect(ctx, r, 0, GCornerNone);
 
-	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
+	graphics_context_set_fill_color(ctx, colorText);
 	if (top)
 		graphics_fill_rect(ctx,
 			GRect(0, 0, r.size.w, WIDGET_BORDER), 0, GCornerNone);
@@ -141,7 +160,7 @@ static void update_battery_layer(Layer *layer, GContext *ctx)
 	if (!showBatteryStatus)
 		return;
 
-	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
+	graphics_context_set_fill_color(ctx, colorText);
 
 	count = r.size.w * (100 - charge_state.charge_percent) / 100 / WIDGET_BORDER;
 	step = (charge_state.is_charging ? 2 : 1);
@@ -159,7 +178,7 @@ static void update_ampm_layer(Layer *layer, GContext *ctx)
 {
 	GRect r = layer_get_bounds(layer);
 
-	graphics_context_set_fill_color(ctx, DIGIT_BORDER_COLOR);
+	graphics_context_set_fill_color(ctx, colorText);
 	if (isTimeAmPm == 0) {
 		graphics_fill_rect(ctx,
 			GRect(0, 0, r.size.w, 3 * WIDGET_BORDER), 0, GCornerNone
@@ -198,7 +217,7 @@ static void update_digit_slot(Layer *layer, GContext *ctx)
 	if (slot->curDigit < 0)
 		return;
 
-	graphics_context_set_fill_color(ctx, DIGIT_COLOR);
+	graphics_context_set_fill_color(ctx, colorText);
 
 	for (row = 0; row < TIME_DIGIT_ROWS; row++) {
 		const char vPrev = digits[slot->prevDigit][row];
@@ -632,9 +651,11 @@ static void window_load(Window *window) {
 	}
 	text_layer_set_font(calendarYMLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
 	text_layer_set_text_alignment(calendarYMLayer, GTextAlignmentCenter);
+	text_layer_set_background_color(calendarYMLayer, GColorClear);
 	layer_add_child(calendarLayers[1], text_layer_get_layer(calendarYMLayer));
 	text_layer_set_font(calendarWDayLayer, fonts_get_system_font(CALENDAR_TEXT_FONT));
 	text_layer_set_text_alignment(calendarWDayLayer, GTextAlignmentCenter);
+	text_layer_set_background_color(calendarWDayLayer, GColorClear);
 	layer_add_child(calendarLayers[0], text_layer_get_layer(calendarWDayLayer));
 
 	// initial values
@@ -646,6 +667,8 @@ static void window_load(Window *window) {
 
 static void window_unload(Window *window) {
 	unsigned i;
+
+	app_message_deregister_callbacks();
 
 	accel_tap_service_unsubscribe();
 	connection_service_unsubscribe();
@@ -679,6 +702,65 @@ static void window_unload(Window *window) {
 #endif
 }
 
+void storage_config_load(void)
+{
+#define PERSIST_LOAD_BOOL(dest, key, dflt) \
+	if (persist_exists(key)) \
+		dest = persist_read_bool(key); \
+	else \
+		dest = dflt;
+
+#define PERSIST_LOAD_GCOLOR8(dest, key, dflt) \
+	if (persist_exists(key)) \
+		dest.argb = persist_read_int(key); \
+	else \
+		dest = dflt;
+
+#ifndef PBL_BW
+	PERSIST_LOAD_GCOLOR8(colorBgBt, KEY_BG_BT_COLOR, BACKGROUND_COLOR);
+	PERSIST_LOAD_GCOLOR8(colorBgNoBt, KEY_BG_NOBT_COLOR, BACKGROUND_COLOR_NOBT);
+#endif
+	PERSIST_LOAD_GCOLOR8(colorText, KEY_TEXT_COLOR, DIGIT_COLOR);
+	PERSIST_LOAD_GCOLOR8(colorBgText, KEY_TEXT_BG_COLOR, DIGIT_BACKGROUND_COLOR);
+
+	PERSIST_LOAD_BOOL(hourLeadingZero, KEY_HOUR_LEADING_ZERO, true);
+	PERSIST_LOAD_BOOL(showBatteryStatus, KEY_SHOW_BATTERY_STATUS, true);
+
+	indicateBluetooth = true;
+	animationType = 0;
+}
+
+void storage_config_save(void)
+{
+#ifndef PBL_BW
+	persist_write_int(KEY_BG_BT_COLOR, colorBgBt.argb);
+	persist_write_int(KEY_BG_NOBT_COLOR, colorBgNoBt.argb);
+#endif
+	persist_write_int(KEY_TEXT_COLOR, colorText.argb);
+	persist_write_int(KEY_TEXT_BG_COLOR, colorBgText.argb);
+
+	persist_write_bool(KEY_HOUR_LEADING_ZERO, hourLeadingZero);
+	persist_write_bool(KEY_SHOW_BATTERY_STATUS, showBatteryStatus);
+}
+
+static void inbox_received_handler(DictionaryIterator *iter, void *context)
+{
+#ifndef PBL_BW
+	colorBgBt = GColorFromHEX(dict_find(iter, KEY_BG_BT_COLOR)->value[0].uint32);
+	colorBgNoBt = GColorFromHEX(dict_find(iter, KEY_BG_NOBT_COLOR)->value[0].uint32);
+#endif
+	colorText = GColorFromHEX(dict_find(iter, KEY_TEXT_COLOR)->value[0].uint32);
+	colorBgText = GColorFromHEX(dict_find(iter, KEY_TEXT_BG_COLOR)->value[0].uint32);
+	hourLeadingZero = dict_find(iter, KEY_HOUR_LEADING_ZERO)->value[0].uint8;
+	showBatteryStatus = dict_find(iter, KEY_SHOW_BATTERY_STATUS)->value[0].uint8;
+
+	// TODO: reconfigure watchface if align changed
+	Layer *windowLayer = window_get_root_layer(window);
+	layer_mark_dirty(windowLayer);
+
+	storage_config_save();
+}
+
 static void init(void) {
 	window = window_create();
 	window_set_window_handlers(window, (WindowHandlers) {
@@ -694,9 +776,14 @@ static void init(void) {
 		.pebble_app_connection_handler = bt_handler
 	});
 	accel_tap_service_subscribe(tap_handler);
+
+	app_message_register_inbox_received(inbox_received_handler);
+	app_message_open(64, 64);
+	storage_config_load();
 }
 
 static void deinit(void) {
+	app_message_deregister_callbacks();
 	window_destroy(window);
 }
 
