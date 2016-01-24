@@ -794,13 +794,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context)
 	showBatteryStatus = dict_find(iter, KEY_SHOW_BATTERY_STATUS)->value[0].uint8;
 	layout = dict_find(iter, KEY_LAYOUT)->value[0].int8;
 
+	storage_config_save();
+
 	destroy_layers();
 	create_layers();
-
-	storage_config_save();
 }
 
 static void init(void) {
+	storage_config_load();
+
 	window = window_create();
 	window_set_window_handlers(window, (WindowHandlers) {
 		.load = window_load,
@@ -818,7 +820,6 @@ static void init(void) {
 
 	app_message_register_inbox_received(inbox_received_handler);
 	app_message_open(64, 64);
-	storage_config_load();
 }
 
 static void deinit(void) {
