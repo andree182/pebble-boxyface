@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width">
+    <style>
+    body {
+        background: #444;
+        color: #FFF;
+        font-family: sans-serif, HelveticaNeue-Light, sans-serif;
+    }
+    p,a {color: #ccc}
+    hr {clear: both; margin: 10px 0}
+    input {
+        display:none; 
+        margin:10px;
+    }
+    input + label {
+        display:inline-block;
+        color: #ccc;
+        border:1px solid #FF4700;
+        font-size:16px;
+        text-align:center;
+        margin: 2px 0 2px 0;
+        padding: 10px 0;
+    }
+    input[type=submit] + label {
+        width: 300px;
+        font-size: 32px;
+        border-radius: 30px;
+    }
+    input[type=radio]:checked + label, input[type=submit] + label { 
+        background: #FF4700;
+        color: #FFF;
+    }
+    .left { border-radius: 20px 0 0 20px; border-right: 0; width: 70px}
+    .mid {border-right: 0}
+    .right { border-radius: 0 20px 20px 0; width: 70px}
+    .triple {width: 65px}
+    .middle {width: 150px}
+    .narrow {width: 40px}
+    .flushright {float: right; margin-bottom: 10px}
+    .center {
+        width: 300px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    #save_button_placeholder + label {visibility: hidden;}
+    #save_button_background {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 10px;
+        background: #333;
+        box-shadow: #000 0 0 20px 10px;
+    }
+    </style>
+</head>
+<body>
+    <form id="form" class="center" onsubmit="return onSubmit(this)">
+        <div class="flushright">
+            <input
+                type="radio" id="hourLeadingZero0" name="hourLeadingZero" value="0"><label for="hourLeadingZero0" class="left">Yes</label><input 
+                type="radio" id="hourLeadingZero1" name="hourLeadingZero" value="1"><label for="hourLeadingZero1" class="right">No</label>
+        </div>
+        Hour leading<br>zero:
+        <hr>
+        <div class="flushright">
+            <input
+                type="radio" id="showBatteryStatus0" name="showBatteryStatus" value="0"><label for="showBatteryStatus0" class="left">Yes</label><input 
+                type="radio" id="showBatteryStatus1" name="showBatteryStatus" value="1"><label for="showBatteryStatus1" class="right">No</label>
+        </div>
+        Show<br>battery status:
+        <hr>
+        <p>
+        <a href="https://github.com/andree182/pebble-boxyface">Home page</a>
+        </p>
+        <br>
+        <input type="submit" id="save_button_placeholder" value="Save"><label for="save_button_placeholder">Save</label>
+        <div id="save_button_background">
+            <div class="center">
+                <input type="submit" id="save" value="Save"><label for="save">Save</label>
+            </div>
+        </div>
+    </form>
+    <script>
+        var config = JSON.parse(decodeURIComponent('"REPLACE_ME_AT_RUNTIME"'));
+        for (var which in config) {
+            if (form[which]) for (var i = 0; i < form[which].length; i++) {
+                var radio = form[which][i];
+                radio.checked = radio.value == config[which];
+            }
+        }
+        function onSubmit(e) {
+            var result = {};
+            var inputs = form.getElementsByTagName("input");
+            for (var i = 0; i < inputs.length; i++)
+                if (inputs[i].checked)
+                    result[inputs[i].name] = parseInt(inputs[i].value);
+            window.location.href = "pebblejs://close#" + encodeURIComponent(JSON.stringify(result));
+            return false;
+        }
+    </script>
+</body>
+</html>
