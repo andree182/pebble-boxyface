@@ -54,7 +54,11 @@ Pebble.addEventListener('webviewclosed', function(e) {
 	var dict = configData;
 	for (var k in dict) {
 		if (k.indexOf("_COLOR") != -1) {
-			dict[k] = parseInt("0x" + invertMapping[dict[k].substring(2)], 16);
+			if (dict[k][0] == "#")
+				v = dict[k].substring(1);
+			else
+				v = dict[k].substring(2);
+			dict[k] = parseInt("0x" + invertMapping[v], 16);
 		}
 	}
 
