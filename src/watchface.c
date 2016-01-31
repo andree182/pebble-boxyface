@@ -28,7 +28,7 @@ along with boxyface.  If not, see <http://www.gnu.org/licenses/>.
 
 static void calendar_fadeout_stopped(
 	Animation *animation, bool finished, void *data);
-static void destroy_calendar_fadeout(
+static void destroy_calendar_animation(
 	Animation *animation, bool finished, void *data);
 static void init(void);
 static void deinit(void);
@@ -282,14 +282,20 @@ static Animation *clockAnims[4], *clockAnim;
 
 static void clock_anim_stopped(Animation *animation, bool finished, void *context)
 {
+	unsigned i;
+
 #if 0
 // TODO: Looks like no destroy is needed
-	int i;
-
 	animation_destroy(clockAnim);
 	for (i = 0; i < 4; i++)
 		animation_destroy(clockAnims[i]);
 #endif
+
+	/* Do final redraw... */
+	for (i = 0; i < sizeof(digitSlots)/sizeof(digitSlots[0]); i++) {
+		digitSlots[i].phase = DIGIT_ANIMATION_LENGTH;
+	}
+	layer_mark_dirty(window_get_root_layer(window));
 }
 
 static void animate_clock(void)
@@ -365,6 +371,12 @@ static void animate_calendar_layer(
 	Layer *windowLayer = window_get_root_layer(window);
 	GRect bounds = layer_get_bounds(windowLayer);
 
+	if (animation->pa != NULL) {
+		/* Animation still in progress, let's not intervene... */
+		return;
+	}
+
+	animation->layer = layer;
 	animation->from_frame = layer_get_frame(layer);
 	animation->to_frame = animation->from_frame;
 
@@ -394,57 +406,61 @@ static void animate_calendar_layer(
 	if (first)
 		animation_set_delay((Animation*) animation->pa, FIRSTSHOW_ANIMATION_TIME);
 
-	if (fadeOut && mdayLayer) {
+	if (fadeOut) {
 		animation_set_handlers((Animation*) animation->pa, (AnimationHandlers) {
 			.stopped = (AnimationStoppedHandler) calendar_fadeout_stopped,
 		}, animation);
 	} else {
 		animation_set_handlers((Animation*) animation->pa, (AnimationHandlers) {
-			.stopped = (AnimationStoppedHandler) destroy_calendar_fadeout,
-		}, NULL);
+			.stopped = (AnimationStoppedHandler) destroy_calendar_animation,
+		}, animation);
 	}
 
 	animation_schedule((Animation*) animation->pa);
-}
-
-static void animate_calendar(struct tm *tickTime, bool first, bool fadeOut)
-{
-	static CalendarAnimation animations[2];
-
-	animations[0].time = *tickTime;
-
-	if (!fadeOut) {
-		// Cancel the other animation, if it didn't finish yet
-		animation_unschedule((Animation*) animations[1].pa);
-	}
-
-	animate_calendar_layer(
-		&animations[0], calendarLayers[0], fadeOut, first, true
-	);
-	if (calendarLayers[0] != calendarLayers[1]) {
-		animate_calendar_layer(
-			&animations[1], calendarLayers[1], fadeOut, first, false
-		);
-	}
 }
 
 static void calendar_fadeout_stopped(
 	Animation *animation, bool finished, void *data)
 {
 	CalendarAnimation *calanim = data;
+	Layer *layer = calanim->layer;
 
-	destroy_calendar_fadeout(animation, finished, data);
+	destroy_calendar_animation(animation, finished, data);
 
 	set_calendar_contents(&calanim->time);
-	animate_calendar(&calanim->time, false, false);
+	animate_calendar_layer(
+		calanim, layer, false, false, layer == calendarLayers[0]
+	);
 }
 
-static void destroy_calendar_fadeout(
+static void destroy_calendar_animation(
 	Animation *animation, bool finished, void *data)
 {
-	(void)finished;
-	(void)data;
-	property_animation_destroy((PropertyAnimation*)animation);
+	CalendarAnimation *calanim = data;
+
+	property_animation_destroy(calanim->pa);
+	calanim->pa = NULL;
+
+	layer_set_frame(calanim->layer, calanim->to_frame);
+	calanim->layer = NULL;
+}
+
+
+static void animate_calendar(struct tm *tickTime, bool first, bool fadeOut)
+{
+	static CalendarAnimation calendarAnimations[2];
+
+	calendarAnimations[0].time = *tickTime;
+	calendarAnimations[1].time = *tickTime;
+
+	animate_calendar_layer(
+		&calendarAnimations[0], calendarLayers[0], fadeOut, first, true
+	);
+	if (calendarLayers[0] != calendarLayers[1]) {
+		animate_calendar_layer(
+			&calendarAnimations[1], calendarLayers[1], fadeOut, first, false
+		);
+	}
 }
 
 static void tick_handler2(
@@ -455,7 +471,7 @@ static void tick_handler2(
 	int hour;
 
 #ifdef DEBUG
-	if ((tickTime->tm_sec % 3 != 0) && !first)
+	if ((tickTime->tm_sec % 3 != 0) && !firstCalendarShow)
 		return;
 	tickTime->tm_hour = tickTime->tm_min % 24;
 	tickTime->tm_min = tickTime->tm_sec;
@@ -480,6 +496,7 @@ static void tick_handler2(
 
 static void tick_handler(struct tm *tickTime, TimeUnits unitsChanged)
 {
+	/* TODO: check that layers are currently not destroyed */
 	tick_handler2(tickTime, unitsChanged, true);
 }
 

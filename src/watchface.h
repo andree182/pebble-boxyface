@@ -59,6 +59,7 @@ typedef struct {
 } DigitSlot;
 
 typedef struct {
+	Layer *layer;
 	GRect orig_frame, from_frame, to_frame;
 	PropertyAnimation *pa;
 	struct tm time;
