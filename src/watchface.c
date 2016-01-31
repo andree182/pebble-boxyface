@@ -207,7 +207,7 @@ static inline int phase_to_size(int row, int phase, char vPrev, char vNew)
 		else
 			return 0;
 	} else {
-		return 0;
+		return vNew ? (TIME_DIGIT_TEXEL_SIZE / 2) : 0;
 	}
 }
 
@@ -290,6 +290,7 @@ static void clock_anim_stopped(Animation *animation, bool finished, void *contex
 	for (i = 0; i < 4; i++)
 		animation_destroy(clockAnims[i]);
 #endif
+	clockAnim = NULL;
 
 	/* Do final redraw... */
 	for (i = 0; i < sizeof(digitSlots)/sizeof(digitSlots[0]); i++) {
@@ -302,7 +303,7 @@ static void animate_clock(void)
 {
 	int i;
 
-	if (clockAnim && animation_is_scheduled(clockAnim))
+	if (clockAnim != NULL)
 		return;
 
 	for (i = 0; i < 4; i++) {
@@ -364,6 +365,15 @@ static void set_calendar_contents(struct tm *tickTime)
 	layer_mark_dirty(calendarLayers[1]);
 }
 
+static int get_calendar_layer_pos(bool mdayLayer)
+{
+	if (mdayLayer) {
+		return calendarLayerHPos;
+	} else {
+		return 0;
+	}
+}
+
 static void animate_calendar_layer(
 	CalendarAnimation *animation, Layer *layer,
 	bool fadeOut, bool first, bool mdayLayer)
@@ -386,11 +396,7 @@ static void animate_calendar_layer(
 	} else {
 		if (first) {
 			animation->orig_frame = animation->from_frame;
-			if (mdayLayer) {
-				animation->orig_frame.origin.x = calendarLayerHPos;
-			} else {
-				animation->orig_frame.origin.x = 0;
-			}
+			animation->orig_frame.origin.x = get_calendar_layer_pos(mdayLayer);
 		}
 		animation->from_frame.origin.x = bounds.size.w;
 		animation->to_frame = animation->orig_frame;
@@ -438,7 +444,10 @@ static void destroy_calendar_animation(
 {
 	CalendarAnimation *calanim = data;
 
+#if 1
+	// WTF: apparently there's no need => shouldn't be done?
 	property_animation_destroy(calanim->pa);
+#endif
 	calanim->pa = NULL;
 
 	layer_set_frame(calanim->layer, calanim->to_frame);
@@ -482,15 +491,31 @@ static void tick_handler2(
 
 	display_value(digitSlots, hour, 0, leadingZero, resetPhase);
 	display_value(digitSlots, tickTime->tm_min, 2, true, resetPhase);
-	animate_clock();
 
-	if (firstCalendarShow) {
+	if (animationType != -1)
+		animate_clock();
+	else
+		layer_mark_dirty(window_get_root_layer(window));
+
+	if (animationType != -1) {
+		if (firstCalendarShow) {
+			set_calendar_contents(tickTime);
+			animate_calendar(tickTime, firstCalendarShow, false);
+			firstCalendarShow = false;
+		} else if ((tickTime->tm_mday != lastTime.tm_mday))
+			animate_calendar(tickTime, firstCalendarShow, true);
+	} else {
+		GRect r = layer_get_frame(calendarLayers[0]);
+		r.origin.x = get_calendar_layer_pos(true);
+		layer_set_frame(calendarLayers[0], r);
+
+		if (calendarLayers[0] != calendarLayers[1]) {
+			r = layer_get_frame(calendarLayers[1]);
+			r.origin.x = get_calendar_layer_pos(false);
+			layer_set_frame(calendarLayers[1], r);
+		}
 		set_calendar_contents(tickTime);
-		animate_calendar(tickTime, firstCalendarShow, false);
-		firstCalendarShow = false;
-	} else if ((tickTime->tm_mday != lastTime.tm_mday))
-		animate_calendar(tickTime, firstCalendarShow, true);
-
+	}
 	lastTime = *tickTime;
 }
 
@@ -781,7 +806,7 @@ static void storage_config_load(void)
 #endif
 
 	indicateBluetooth = true;
-	animationType = 0;
+	animationType = -1;
 }
 
 static void storage_config_save(void)
