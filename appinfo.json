@@ -3,7 +3,7 @@
   "shortName": "boxyface",
   "longName": "plain-but-highly-readable watchface",
   "companyName": "Andrej Krutak",
-  "versionLabel": "0.4",
+  "versionLabel": "0.5",
   "sdkVersion": "3",
   "targetPlatforms": ["aplite", "basalt", "chalk"],
   "watchapp": {

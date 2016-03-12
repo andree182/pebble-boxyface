@@ -806,7 +806,7 @@ static void storage_config_load(void)
 #endif
 
 	indicateBluetooth = true;
-	animationType = -1;
+	animationType = 0;
 }
 
 static void storage_config_save(void)
